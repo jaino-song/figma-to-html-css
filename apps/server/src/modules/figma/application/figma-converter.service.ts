@@ -24,6 +24,8 @@ export class FigmaConverterService {
   convert(rootNode: FigmaNode): { html: string; css: string } {
     // 1. Locate the first "meaningful" Frame/Artboard to convert.
     // This avoids rendering the entire infinite canvas.
+    // Checking the rootNode
+    console.log('rootNode', JSON.stringify(rootNode, null, 2));
     const targetNode = this.findFirstArtboard(rootNode) || rootNode;
 
     // 2. Create a context to hold CSS rules.
@@ -149,12 +151,73 @@ export class FigmaConverterService {
         styles.push(`gap: ${node.itemSpacing || 0}px;`);
         styles.push(`padding: ${node.paddingTop || 0}px ${node.paddingRight || 0}px ${node.paddingBottom || 0}px ${node.paddingLeft || 0}px;`);
         
-        // Basic alignment mapping
-        const align = node.counterAxisSizingMode === 'FIXED' ? 'flex-start' : 'flex-start';
-        const justify = 'flex-start'; 
+        // Check if this container has text children with alignment
+        let align = 'flex-start';
+        let justify = 'flex-start';
+        
+        if (node.children && node.children.length > 0) {
+            const textChild = node.children.find(child => child.type === 'TEXT');
+            if (textChild && textChild.style) {
+                // Use text child's alignment for the auto-layout container
+                const verticalAlignment = textChild.style.textAlignVertical;
+                if (verticalAlignment === 'CENTER') {
+                    align = 'center';
+                } else if (verticalAlignment === 'BOTTOM') {
+                    align = 'flex-end';
+                } else if (verticalAlignment === 'TOP') {
+                    align = 'flex-start';
+                }
+                
+                const horizontalAlignment = textChild.style.textAlignHorizontal;
+                if (horizontalAlignment === 'CENTER') {
+                    justify = 'center';
+                } else if (horizontalAlignment === 'RIGHT') {
+                    justify = 'flex-end';
+                } else if (horizontalAlignment === 'LEFT') {
+                    justify = 'flex-start';
+                }
+            }
+        }
         
         styles.push(`align-items: ${align};`);
         styles.push(`justify-content: ${justify};`);
+    }
+    
+    // 3b. Apply flexbox for text containers (to align text children properly)
+    // This handles cases where the parent doesn't have auto-layout but contains text
+    if (node.type !== 'TEXT' && node.children && node.children.length > 0) {
+        const textChild = node.children.find(child => child.type === 'TEXT');
+        // Apply flexbox if text has alignment AND parent doesn't have auto-layout
+        if (textChild && textChild.style && !(node.layoutMode && node.layoutMode !== 'NONE')) {
+            const hasAlignment = textChild.style.textAlignHorizontal || textChild.style.textAlignVertical;
+            if (hasAlignment) {
+                styles.push('display: flex;');
+                
+                // Vertical alignment (align-items)
+                const verticalAlignment = textChild.style.textAlignVertical;
+                if (verticalAlignment === 'CENTER') {
+                    styles.push('align-items: center;');
+                } else if (verticalAlignment === 'BOTTOM') {
+                    styles.push('align-items: flex-end;');
+                } else if (verticalAlignment === 'TOP') {
+                    styles.push('align-items: flex-start;');
+                } else {
+                    styles.push('align-items: center;'); // default to center for better text rendering
+                }
+                
+                // Horizontal alignment (justify-content)
+                const horizontalAlignment = textChild.style.textAlignHorizontal;
+                if (horizontalAlignment === 'CENTER') {
+                    styles.push('justify-content: center;');
+                } else if (horizontalAlignment === 'RIGHT') {
+                    styles.push('justify-content: flex-end;');
+                } else if (horizontalAlignment === 'LEFT') {
+                    styles.push('justify-content: flex-start;');
+                } else {
+                    styles.push('justify-content: center;'); // default
+                }
+            }
+        }
     }
 
     // 4. Backgrounds & Fills
@@ -261,8 +324,11 @@ export class FigmaConverterService {
     if (style.lineHeightPx) css.push(`line-height: ${style.lineHeightPx}px;`);
     if (style.letterSpacing) css.push(`letter-spacing: ${style.letterSpacing}px;`);
     
+    // Text alignment (inline text alignment)
     const alignMap: any = { 'LEFT': 'left', 'RIGHT': 'right', 'CENTER': 'center', 'JUSTIFIED': 'justify' };
-    if (style.textAlignHorizontal) css.push(`text-align: ${alignMap[style.textAlignHorizontal]};`);
+    if (style.textAlignHorizontal) {
+      css.push(`text-align: ${alignMap[style.textAlignHorizontal]};`);
+    }
     
     return css;
   }
