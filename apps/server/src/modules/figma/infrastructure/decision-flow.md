@@ -77,11 +77,20 @@ constructor(@Inject('FIGMA_API_URL') private readonly baseUrl: string) {}
 
 ---
 
-#### 3. **In-Memory Caching**
+#### 3. **In-Memory Caching Strategy**
+
+### Cache Structure
+
 ```typescript
 private cache = new Map<string, { data: FigmaNode; timestamp: number }>();
 private readonly CACHE_TTL = 3600000; // 1 hour in milliseconds
 ```
+
+**Cache Storage:**
+- **Key:** `fileKey` (string) - Figma file identifier
+- **Value:** Object containing:
+  - `data: FigmaNode` - The cached Figma document
+  - `timestamp: number` - When it was cached (Unix timestamp in ms)
 
 **Why Cache?**
 - **API Rate Limiting:** Figma has strict rate limits
@@ -95,30 +104,199 @@ private readonly CACHE_TTL = 3600000; // 1 hour in milliseconds
 - Fast lookups O(1)
 - Sufficient for single-instance deployments
 
-**Limitations:**
-- ❌ Cache is lost on server restart
-- ❌ Not shared across multiple server instances
-- ❌ No cache invalidation strategy
-- ❌ Memory grows unbounded (though limited by TTL)
+---
 
-**Cache Key:** File key only (not file key + token)
-- Assumes same file returns same data regardless of token
-- Multiple users can share cached data
-- Potential security concern: User A's token could serve cached data to User B
+### Cache Flow
+
+#### Step 1: **Check Cache First**
+
+```typescript
+async getFile(fileKey: string, token: string): Promise<FigmaNode> {
+  const cached = this.cache.get(fileKey);
+  if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+    console.log('Using cached Figma file');
+    return cached.data;
+  }
+```
+
+**Logic:**
+1. Try to get cached data: `this.cache.get(fileKey)`
+2. If found AND not expired:
+   - `Date.now() - cached.timestamp` = age of cache entry
+   - If age < 1 hour (CACHE_TTL), return cached data
+3. Otherwise, continue to fetch from API
 
 ---
 
-#### 4. **TTL (Time-To-Live) Strategy**
+#### Step 2: **Fetch from API (Cache Miss)**
+
 ```typescript
-if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-  console.log('Using cached Figma file');
-  return cached.data;
-}
+try {
+  const response = await axios.get(`${this.baseUrl}/files/${fileKey}`, {
+    headers: {
+      'X-Figma-Token': token,
+    },
+  });
+  
+  this.cache.set(fileKey, {
+    data: response.data.document,
+    timestamp: Date.now(),
+  });
+  
+  return response.data.document;
+```
+
+**Logic:**
+1. Fetch from Figma API
+2. Store in cache: `this.cache.set(fileKey, { data, timestamp })`
+3. Return the data
+
+---
+
+### Visual Flow Diagram
+
+```
+Request for fileKey "abc123"
+         ↓
+    Check cache
+         ↓
+    ┌─────────┐
+    │ Cached? │
+    └────┬────┘
+         │
+    ┌────┴────┐
+    │         │
+   YES       NO
+    │         │
+    ↓         ↓
+ Check TTL   Fetch API
+    │            ↓
+┌───┴───┐    Store in cache
+│       │        ↓
+Fresh  Expired  Return data
+│       │
+↓       ↓
+Return  Fetch API
+cache      ↓
+       Store in cache
+           ↓
+       Return data
 ```
 
 ---
 
-#### 5. **HTTP Client Choice: Axios**
+### Example Timeline
+
+```javascript
+// Time: 0ms
+getFile("abc123", "token1")
+  → Cache MISS
+  → Fetch from API (takes 500ms)
+  → Store: { data: {...}, timestamp: 1000 }
+  → Return data
+
+// Time: 30 minutes later (1,800,000ms)
+getFile("abc123", "token2")
+  → Cache HIT
+  → Age: 1,800,000ms < 3,600,000ms (TTL)
+  → Return cached data immediately (0ms latency!)
+
+// Time: 90 minutes later (5,400,000ms)
+getFile("abc123", "token3")
+  → Cache EXPIRED
+  → Age: 5,400,000ms > 3,600,000ms (TTL)
+  → Fetch from API (500ms)
+  → Update cache: { data: {...}, timestamp: 5400000 }
+  → Return fresh data
+```
+
+---
+
+### TTL (Time-To-Live) Strategy
+
+**Why 1 Hour?**
+- Balances freshness vs. performance
+- Figma designs don't change frequently during active development
+- Long enough to benefit repeated requests
+- Short enough to see updates within reasonable time
+
+**Trade-offs:**
+- **Longer TTL:** Better performance, staler data
+- **Shorter TTL:** Fresher data, more API calls
+
+**Production Consideration:**
+```typescript
+// Could make TTL configurable
+constructor(
+  @Inject('CACHE_TTL') private readonly CACHE_TTL: number = 3600000
+) {}
+```
+
+**Cache Invalidation Strategy (Future):**
+- Manual invalidation endpoint: `DELETE /cache/:fileKey`
+- Webhook from Figma when file changes
+- Smart TTL based on file activity
+
+---
+
+### Cache Key Strategy
+
+**Current:** Only uses `fileKey`
+```typescript
+this.cache.get(fileKey) // Same for all users
+```
+
+**Implication:**
+- User A fetches file "abc123" → Cached
+- User B fetches same file "abc123" → Gets User A's cached data
+- **Shared cache across all users**
+
+**Potential Issue:**
+If different tokens have different permissions to the same file, User B might see cached data they shouldn't access.
+
+**Alternative (per-user cache):**
+```typescript
+// Change cache key to include user identifier
+this.cache.get(`${fileKey}:${userId}`)
+```
+
+---
+
+### Performance Impact
+
+#### Without Cache:
+```
+Request 1: 500ms (API call)
+Request 2: 500ms (API call)
+Request 3: 500ms (API call)
+Total: 1500ms
+```
+
+#### With Cache:
+```
+Request 1: 500ms (API call, cache miss)
+Request 2: ~0ms (cache hit)
+Request 3: ~0ms (cache hit)
+Total: 500ms (67% faster!)
+```
+
+---
+
+### Cache Characteristics
+
+| Characteristic | Value |
+|---------------|-------|
+| **Storage Type** | In-memory (JavaScript Map) |
+| **Scope** | Per server instance |
+| **Persistence** | Lost on server restart |
+| **TTL** | 1 hour (3,600,000ms) |
+| **Eviction Policy** | Time-based only (no LRU) |
+| **Max Size** | Unbounded (grows with unique files) |
+| **Sharing** | Single instance (not distributed) |
+
+---
+
+#### 4. **HTTP Client Choice: Axios**
 ```typescript
 const response = await axios.get(`${this.baseUrl}/files/${fileKey}`, {
   headers: {
@@ -158,7 +336,7 @@ https.get(url, (res) => {
 
 ---
 
-#### 6. **Authentication: X-Figma-Token Header**
+#### 5. **Authentication: X-Figma-Token Header**
 ```typescript
 headers: {
   'X-Figma-Token': token,
@@ -166,11 +344,31 @@ headers: {
 ```
 
 **Why Custom Header?**
-- Figma's general convention
+- Figma API specification requires it
+- More secure than query parameters (not logged in URLs)
+- Works with HTTPS encryption
+
+**Security Consideration:**
+- Token is passed from client → server → Figma
+- Server doesn't store the token
+- Each request requires token (stateless)
+
+**Alternative Design: Server-Side Token Storage**
+```typescript
+// User authenticates once, server stores token
+async getFile(fileKey: string, userId: string) {
+  const token = await this.tokenStore.getToken(userId);
+  // Use stored token
+}
+```
+
+**Trade-offs:**
+- Current: Stateless, no storage needed, but token in every request
+- Alternative: Stateful, more secure, but requires database
 
 ---
 
-#### 7. **Error Handling Strategy**
+#### 6. **Error Handling Strategy**
 ```typescript
 try {
   return response.data.document;
@@ -211,7 +409,7 @@ error.response?.status     // Figma's status code
 
 ---
 
-#### 8. **Return Type: Domain Model**
+#### 7. **Return Type: Domain Model**
 ```typescript
 async getFile(fileKey: string, token: string): Promise<FigmaNode>
 ```
@@ -238,7 +436,6 @@ return response.data.document;
 - Could add runtime validation with Zod/io-ts if needed
 
 ---
-
 ## Dependency Graph
 
 ```

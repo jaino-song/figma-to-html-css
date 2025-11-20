@@ -4,16 +4,19 @@
 import React, { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { convertFigma } from '../lib/api';
-import { useFigmaStore } from '../store/useFigmaStore';
 
 export default function Home() {
-  const { fileKey, token, html, css, setFileKey, setToken, setResult } = useFigmaStore();
+  const [fileKey, setFileKey] = useState('');
+  const [token, setToken] = useState('');
+  const [html, setHtml] = useState('');
+  const [css, setCss] = useState('');
   const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
 
   const mutation = useMutation({
     mutationFn: (data: { fileKey: string; token: string }) => convertFigma(data.fileKey, data.token),
     onSuccess: (data) => {
-      setResult(data.html, data.css);
+      setHtml(data.html);
+      setCss(data.css);
     },
   });
 
