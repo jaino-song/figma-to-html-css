@@ -22,23 +22,30 @@ export class FigmaConverterService {
    * @returns An object containing the generated HTML and CSS.
    */
   convert(rootNode: FigmaNode): { html: string; css: string } {
-    // 1. Locate the first "meaningful" Frame/Artboard to convert.
-    // This avoids rendering the entire infinite canvas.
-    // Checking the rootNode
-    console.log('rootNode', JSON.stringify(rootNode, null, 2));
-    const targetNode = this.findFirstArtboard(rootNode) || rootNode;
+    // 1. Find all frames/artboards in the document
+    const artboards = this.findAllArtboards(rootNode);
+    
+    // 2. If no artboards found, use root node
+    const nodesToProcess = artboards.length > 0 ? artboards : [rootNode];
 
-    // 2. Create a context to hold CSS rules.
-    // We pass this down recursively so we don't rely on shared class state (thread-safe).
+    // 3. Create a context to hold CSS rules
     const context = { 
       cssRules: [] as string[], 
       idCounter: 0 
     };
     
-    // 3. Begin recursive processing
-    const html = this.processNode(targetNode, targetNode, context, true);
+    // 4. Process each artboard and combine HTML
+    // All artboards are treated as root containers since they're all top-level in the flex layout
+    const artboardsHtml = nodesToProcess.map((artboard) => {
+      return this.processNode(artboard, artboard, context, true);
+    }).join('');
     
-    // 4. Add global resets and container styles for the preview
+    // 5. Wrap all artboards in a container
+    const html = nodesToProcess.length > 1 
+      ? `<div class="artboards-container">${artboardsHtml}</div>`
+      : artboardsHtml;
+    
+    // 6. Add global resets and container styles
     const baseCss = `
       body { 
         font-family: sans-serif; 
@@ -51,6 +58,15 @@ export class FigmaConverterService {
         background-color: #f5f5f5;
       }
       * { box-sizing: border-box; }
+      
+      .artboards-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 32px;
+        padding: 32px;
+        justify-content: center;
+        align-items: flex-start;
+      }
     `;
 
     return {
@@ -60,19 +76,41 @@ export class FigmaConverterService {
   }
 
   /**
-   * Helper to traverse the tree and find the first FRAME that has children.
+   * Helper to find all top-level frames/artboards in the document
+   * Typical Figma structure: DOCUMENT → CANVAS → [FRAME, FRAME, ...]
+   * Returns all FRAME or COMPONENT nodes at the canvas level
    */
-  private findFirstArtboard(node: FigmaNode): FigmaNode | null {
-    if ((node.type === 'FRAME' || node.type === 'COMPONENT') && node.children && node.children.length > 0) {
-        return node;
+  private findAllArtboards(node: FigmaNode): FigmaNode[] {
+    // If we're at a CANVAS level, get all direct FRAME/COMPONENT children
+    if (node.type === 'CANVAS' && node.children) {
+      return node.children.filter(child => 
+        (child.type === 'FRAME' || child.type === 'COMPONENT') && 
+        child.children && 
+        child.children.length > 0
+      );
     }
-    if (node.children) {
+    
+    // If we're at a DOCUMENT level, search its CANVAS children
+    if (node.type === 'DOCUMENT' && node.children) {
       for (const child of node.children) {
-        const found = this.findFirstArtboard(child);
-        if (found) return found;
+        const artboards = this.findAllArtboards(child);
+        if (artboards.length > 0) {
+          return artboards;
+        }
       }
     }
-    return null;
+    
+    // Otherwise, recursively search for CANVAS nodes
+    if (node.children) {
+      for (const child of node.children) {
+        const artboards = this.findAllArtboards(child);
+        if (artboards.length > 0) {
+          return artboards;
+        }
+      }
+    }
+    
+    return [];
   }
 
   /**

@@ -1,18 +1,4 @@
-
-/**
- * Domain Layer: Figma Types
- * 
- * RESPONSIBILITY:
- * Defines the Shape of the Business Data.
- * In Clean Architecture, these are our "Entities" (conceptually). 
- * 
- * DECISION:
- * We use Interfaces instead of Classes because:
- * 1. This data comes directly from a JSON API.
- * 2. We do not need to attach behavior (methods) to these nodes.
- * 3. Interfaces have zero runtime overhead in TypeScript.
- */
-
+// Using interface instead of class because we don't need to attach behavior to these nodes and it has zero runtime overhead in TypeScript
 export interface FigmaNode {
   id: string;
   name: string;

@@ -13,7 +13,7 @@ export default function Home() {
 
   // using react query for easy state management and caching per user
   // using useQuery to fetch the data from the Figma API
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ['convert-figma', fileKey, token],
     queryFn: () => convertFigma(fileKey, token),
     enabled: shouldFetch && !!fileKey && !!token,
@@ -113,6 +113,24 @@ export default function Home() {
               {isLoading ? 'Converting...' : 'Convert'}
             </button>
           </form>
+          
+          {/* Cache status indicator */}
+          {data && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-2 text-sm">
+                <span className={`inline-block w-2 h-2 rounded-full ${isFetching ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></span>
+                <span className="font-medium text-blue-900">
+                  {isFetching ? '🔄 Fetching from server...' : '✅ Using cached data'}
+                </span>
+                {dataUpdatedAt && (
+                  <span className="text-blue-600 text-xs">
+                    (Last updated: {new Date(dataUpdatedAt).toLocaleTimeString()})
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="mt-4 p-4 bg-red-50 text-red-600 rounded-lg">
               Error: {error.message}

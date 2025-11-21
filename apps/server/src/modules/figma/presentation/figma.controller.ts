@@ -1,6 +1,6 @@
 
 import { Controller, Post, Body, HttpException, HttpStatus } from '@nestjs/common';
-import { FigmaApiService } from '../infrastructure/figma-api.service';
+import { FigmaApiService } from '../infrastructure/repositories/figma-api.repository';
 import { FigmaConverterService } from '../application/figma-converter.service';
 import { ConvertFigmaDto } from '../application/dto/convert-figma.dto';
 

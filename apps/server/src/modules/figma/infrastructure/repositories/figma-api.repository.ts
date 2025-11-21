@@ -1,15 +1,14 @@
 
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import axios from 'axios';
-import { FigmaNode } from '../domain/figma.types';
-import { figmaApiToDomain } from './mappers/figma-api.mapper';
+import { FigmaNode } from '../../domain/figma.types';
 
 // service to communicate with the Figma REST API
 @Injectable()
 export class FigmaApiService {
   // base URL for all Figma API requests
   private readonly baseUrl = 'https://api.figma.com/v1';
-
+  
   // fetches the Figma file structure using the file key and personal access token
   async getFile(fileKey: string, token: string): Promise<FigmaNode> {
 
@@ -20,9 +19,9 @@ export class FigmaApiService {
           'X-Figma-Token': token,
         },
       });
-        
-      // mapping raw API response to domain type with type safety and validation
-      return figmaApiToDomain(response.data.document);
+      
+      // returning only the document node from the API response
+      return response.data.document;
     } catch (error) {
       // logging the error for debugging
       console.error('Error fetching Figma file:', error);
