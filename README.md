@@ -171,8 +171,14 @@ for (const artboard of artboards) {
 **112 tests** across all layers:
 
 ```bash
+# Navigate to backend directory first
+cd apps/server
+
 # Run all tests
 npm test
+
+# Watch mode (re-run on changes)
+npm run test:watch
 
 # Coverage report
 npm run test:cov

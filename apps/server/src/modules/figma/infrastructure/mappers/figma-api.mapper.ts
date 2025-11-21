@@ -57,7 +57,7 @@ export const figmaApiToDomain = (apiResponse: any): FigmaNode => {
 const mapPaintToDomain = (apiPaint: any): Paint => {
   return {
     type: apiPaint.type,
-    color: apiPaint.color ? mapColorToDomain(apiPaint.color) : undefined,
+    color: apiPaint.color !== undefined ? mapColorToDomain(apiPaint.color) : undefined,
     opacity: apiPaint.opacity,
     visible: apiPaint.visible,
     gradientHandlePositions: apiPaint.gradientHandlePositions?.map(mapVectorToDomain),
@@ -88,8 +88,8 @@ const mapEffectToDomain = (apiEffect: any): Effect => {
     type: apiEffect.type,
     visible: apiEffect.visible ?? true,
     radius: apiEffect.radius ?? 0,
-    color: apiEffect.color ? mapColorToDomain(apiEffect.color) : undefined,
-    offset: apiEffect.offset ? mapVectorToDomain(apiEffect.offset) : undefined,
+    color: apiEffect.color !== undefined ? mapColorToDomain(apiEffect.color) : undefined,
+    offset: apiEffect.offset !== undefined ? mapVectorToDomain(apiEffect.offset) : undefined,
     spread: apiEffect.spread,
   };
 };

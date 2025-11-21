@@ -1,5 +1,5 @@
 
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, Matches } from 'class-validator';
 
 /**
  * DTO (Data Transfer Object)
@@ -14,9 +14,11 @@ import { IsString, IsNotEmpty } from 'class-validator';
 export class ConvertFigmaDto {
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/, { message: 'fileKey must not be only whitespace' })
   fileKey: string;
 
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/, { message: 'token must not be only whitespace' })
   token: string;
 }

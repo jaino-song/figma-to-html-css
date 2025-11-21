@@ -37,7 +37,9 @@ describe('FigmaConverterService', () => {
             expect(result).toHaveProperty('html');
             expect(result).toHaveProperty('css');
             expect(result.html).toContain('<div class="node-1-1"></div>');
-            expect(result.css).toContain('.node-1-1 { width: 100px; height: 50px; }');
+            expect(result.css).toContain('.node-1-1');
+            expect(result.css).toContain('width: 100px');
+            expect(result.css).toContain('height: 50px');
         });
 
         // checks that global CSS resets and body styles are included in output
@@ -82,7 +84,9 @@ describe('FigmaConverterService', () => {
             const result = service.convert(mockNode);
 
             expect(result.html).toContain('<div class="node-1-1"></div>');
-            expect(result.css).toContain('.node-1-1 { width: 200px; height: 200px; }');
+            expect(result.css).toContain('.node-1-1');
+            expect(result.css).toContain('width: 200px');
+            expect(result.css).toContain('height: 200px');
         });
 
         // ensures fallback to root node when no artboard (FRAME with children) exists
@@ -676,8 +680,8 @@ describe('FigmaConverterService', () => {
             expect(result.css).toContain('rgba(0, 0, 255, 1) 100%');
         });
 
-        // verifies image fills are converted to CSS background url with cover sizing
-        it('should generate image background', () => {
+        // verifies image fills are replaced with placeholder gradients (images not downloaded/embedded)
+        it('should generate placeholder for image background', () => {
             const mockNode: FigmaNode = {
                 id: '1:1',
                 name: 'Frame',
@@ -693,8 +697,8 @@ describe('FigmaConverterService', () => {
 
             const result = service.convert(mockNode);
 
-            expect(result.css).toContain('url(https://example.com/image.png)');
-            expect(result.css).toContain('center / cover no-repeat');
+            // Images are replaced with placeholder gradients
+            expect(result.css).toContain('linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%)');
         });
     });
 

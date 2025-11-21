@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { FigmaController } from '../../src/modules/figma/presentation/figma.controller';
-import { FigmaApiService } from '../../src/modules/figma/infrastructure/figma-api.service';
+import { FigmaApiService } from '../../src/modules/figma/infrastructure/repositories/figma-api.repository';
 import { FigmaConverterService } from '../../src/modules/figma/application/figma-converter.service';
 import { ConvertFigmaDto } from '../../src/modules/figma/application/dto/convert-figma.dto';
 import { HttpException, HttpStatus } from '@nestjs/common';
