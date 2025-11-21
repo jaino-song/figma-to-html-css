@@ -1,0 +1,98 @@
+{
+  "mockFigmaResponse": {
+    "id": "1:13",
+    "name": "Home Indicator",
+    "type": "FRAME",
+    "scrollBehavior": "SCROLLS",
+    "children": [
+      {
+        "id": "1:14",
+        "name": "Home Indicator",
+        "type": "RECTANGLE",
+        "scrollBehavior": "SCROLLS",
+        "rotation": 3.141592653589793,
+        "boundVariables": {
+          "fills": [
+            {
+              "type": "VARIABLE_ALIAS",
+              "id": "VariableID:558aee544e293c2f1ffe7ec9ed3f102f377c9d92/1040:89"
+            }
+          ]
+        },
+        "blendMode": "PASS_THROUGH",
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "type": "SOLID",
+            "color": {
+              "r": 0.1725490242242813,
+              "g": 0.09803921729326248,
+              "b": 0.3019607961177826,
+              "a": 1
+            },
+            "boundVariables": {
+              "color": {
+                "type": "VARIABLE_ALIAS",
+                "id": "VariableID:558aee544e293c2f1ffe7ec9ed3f102f377c9d92/1040:89"
+              }
+            }
+          }
+        ],
+        "strokes": [],
+        "strokeWeight": 1,
+        "strokeAlign": "INSIDE",
+        "cornerRadius": 100,
+        "cornerSmoothing": 0,
+        "absoluteBoundingBox": {
+          "x": 127,
+          "y": 839,
+          "width": 139,
+          "height": 5
+        },
+        "absoluteRenderBounds": {
+          "x": 127,
+          "y": 839,
+          "width": 139,
+          "height": 5
+        },
+        "constraints": {
+          "vertical": "BOTTOM",
+          "horizontal": "CENTER"
+        },
+        "effects": [],
+        "interactions": []
+      }
+    ],
+    "blendMode": "PASS_THROUGH",
+    "clipsContent": false,
+    "background": [],
+    "fills": [],
+    "strokes": [],
+    "strokeWeight": 1,
+    "strokeAlign": "INSIDE",
+    "backgroundColor": {
+      "r": 0,
+      "g": 0,
+      "b": 0,
+      "a": 0
+    },
+    "absoluteBoundingBox": {
+      "x": -1.1368683772161603e-13,
+      "y": 831,
+      "width": 393,
+      "height": 21
+    },
+    "absoluteRenderBounds": {
+      "x": -1.1368683772161603e-13,
+      "y": 831,
+      "width": 393,
+      "height": 21
+    },
+    "constraints": {
+      "vertical": "TOP",
+      "horizontal": "LEFT"
+    },
+    "effects": [],
+    "interactions": []
+  }
+}

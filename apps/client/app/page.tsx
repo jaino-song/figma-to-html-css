@@ -1,31 +1,35 @@
-
 'use client';
 
 import React, { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { convertFigma } from '../lib/api';
 
 export default function Home() {
+  // avoiding state management library for simplicity and performance
   const [fileKey, setFileKey] = useState('');
   const [token, setToken] = useState('');
-  const [html, setHtml] = useState('');
-  const [css, setCss] = useState('');
   const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
+  const [shouldFetch, setShouldFetch] = useState(false);
 
-  const mutation = useMutation({
-    mutationFn: (data: { fileKey: string; token: string }) => convertFigma(data.fileKey, data.token),
-    onSuccess: (data) => {
-      setHtml(data.html);
-      setCss(data.css);
-    },
+  // using react query for easy state management and caching per user
+  // using useQuery to fetch the data from the Figma API
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['convert-figma', fileKey, token],
+    queryFn: () => convertFigma(fileKey, token),
+    enabled: shouldFetch && !!fileKey && !!token,
+    staleTime: 1000 * 60 // 1 minute
   });
 
+  // destructuring the data from the query
+  const { html, css } = data || { html: '', css: '' };
+
+  // triggering the conversion to html and css
   const handleConvert = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fileKey || !token) return;
-    mutation.mutate({ fileKey, token });
+    setShouldFetch(true);
   };
 
+  // button to download the html and css files
   const handleDownload = () => {
     if (!html || !css) return;
     
@@ -56,6 +60,7 @@ export default function Home() {
     cssLink.click();
   };
 
+  // iframe to preview the html and css
   const iframeSrc = `
     <!DOCTYPE html>
     <html>
@@ -87,7 +92,7 @@ export default function Home() {
                 value={fileKey}
                 onChange={(e) => setFileKey(e.target.value)}
                 placeholder="e.g. MxMXpjiLPbdHlratvH0Wdy"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                className="w-full px-4 py-2 text-black placeholder:text-gray-300 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
               />
             </div>
             <div className="flex-1 space-y-1 w-full">
@@ -97,20 +102,20 @@ export default function Home() {
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
                 placeholder="figd_..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                className="w-full px-4 py-2 text-black placeholder:text-gray-300 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
               />
             </div>
             <button
               type="submit"
-              disabled={mutation.isPending}
+              disabled={isLoading}
               className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-              {mutation.isPending ? 'Converting...' : 'Convert'}
+              {isLoading ? 'Converting...' : 'Convert'}
             </button>
           </form>
-          {mutation.isError && (
+          {error && (
             <div className="mt-4 p-4 bg-red-50 text-red-600 rounded-lg">
-              Error: {mutation.error.message}
+              Error: {error.message}
             </div>
           )}
         </div>

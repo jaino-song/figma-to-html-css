@@ -30,11 +30,6 @@ export class FigmaApiService {
    * @returns The root document node of the Figma file.
    */
   async getFile(fileKey: string, token: string): Promise<FigmaNode> {
-    const cached = this.cache.get(fileKey);
-    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-      console.log('Using cached Figma file');
-      return cached.data;
-    }
 
     try {
       const response = await axios.get(`${this.baseUrl}/files/${fileKey}`, {
