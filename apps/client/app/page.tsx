@@ -25,8 +25,6 @@ export default function Home() {
 
   // destructuring the data from the query
   const { html, css } = data || { html: '', css: '' };
-  console.log('html', html);
-  console.log('css', css);
 
   // triggering the conversion to html and css
   const handleConvert = (e: React.FormEvent) => {

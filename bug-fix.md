@@ -550,17 +550,568 @@ Added to `decision-flow.md`:
 
 ---
 
+## Bug #4: Text Alignment with `text-align` Property
+
+**Date:** 2025-11-21  
+**Severity:** 🟡 Major (Layout Issue)  
+**Affected Files:** `apps/server/src/modules/figma/application/figma-converter.service.ts`
+
+### **Problem**
+
+Text alignment using CSS `text-align` property was not working for text elements because `text-align` only works on **block-level elements** or elements with specific display modes, not on inline text directly.
+
+#### **Buggy Approach:**
+```typescript
+// ❌ BAD: Applying text-align directly to text node
+if (node.type === 'TEXT') {
+  styles.push('text-align: center;'); // Doesn't work on inline elements
+}
+```
+
+**Result:**
+```css
+.node-text { 
+  text-align: center; /* ❌ No effect on inline text */
+}
+```
+
+**Why This Failed:**
+- `text-align` applies to the **content within a block container**, not the element itself
+- Text nodes are typically `display: inline` or `display: block` without containing children
+- The alignment has no effect when there's no "container" context
+
+---
+
+### **Root Cause**
+
+**CSS `text-align` Property Behavior:**
+- Works on **block-level containers** to align their **inline children**
+- Does NOT work on the inline text element itself
+- Requires a parent container to apply alignment
+
+**Example:**
+```html
+<!-- ❌ This doesn't center the text -->
+<div class="text" style="text-align: center;">Hello</div>
+
+<!-- ✅ This centers the text by centering the container -->
+<div style="display: flex; justify-content: center;">
+  <div class="text">Hello</div>
+</div>
+```
+
+---
+
+### **Solution**
+
+**Switched to Flexbox for text alignment:**
+
+```typescript
+// ✅ FIXED: Use flexbox on parent container
+const textChild = node.children.find(child => child.type === 'TEXT');
+if (textChild && textChild.style && !hasAbsoluteChildren) {
+  // Apply flex to parent, not to text element
+  if (textChild.style.textAlignHorizontal === 'CENTER') {
+    styles.push('display: flex;');
+    styles.push('justify-content: center;');
+  }
+}
+```
+
+**Key Changes:**
+1. ✅ Detect text children in parent node
+2. ✅ Apply `display: flex` to **parent container** (not text)
+3. ✅ Use `justify-content` for horizontal alignment
+4. ✅ Use `align-items` for vertical alignment
+5. ✅ Skip if parent has absolutely positioned children (conflicts with flex)
+
+---
+
+### **Why Flexbox Works**
+
+**Flexbox Advantages:**
+- Works on any container with children
+- Provides both horizontal (`justify-content`) and vertical (`align-items`) alignment
+- More predictable than `text-align` for layout purposes
+
+**Alignment Mapping:**
+```typescript
+// Horizontal alignment
+textAlignHorizontal: 'LEFT'   → justify-content: flex-start
+textAlignHorizontal: 'CENTER' → justify-content: center
+textAlignHorizontal: 'RIGHT'  → justify-content: flex-end
+
+// Vertical alignment
+textAlignVertical: 'TOP'      → align-items: flex-start
+textAlignVertical: 'CENTER'   → align-items: center
+textAlignVertical: 'BOTTOM'   → align-items: flex-end
+```
+
+---
+
+### **Impact**
+
+✅ **Before:** Text alignment properties from Figma were ignored  
+✅ **After:** Text properly aligns horizontally and vertically  
+✅ **Side Effect:** Parent containers now use flexbox when containing aligned text
+
+---
+
+## Bug #5: Flex Properties Applied to Wrong Elements
+
+**Date:** 2025-11-21  
+**Severity:** 🟡 Major (Logic Error)  
+**Affected Files:** `apps/server/src/modules/figma/application/figma-converter.service.ts`
+
+### **Problem**
+
+The text alignment logic was applying flex properties (`display: flex`, `justify-content`, `align-items`) to the **text elements themselves** instead of their **parent containers**.
+
+#### **Buggy Logic:**
+```typescript
+// ❌ BAD: Applying flex to text node
+if (node.type === 'TEXT' && node.style.textAlignHorizontal === 'CENTER') {
+  styles.push('display: flex;');        // Wrong element!
+  styles.push('justify-content: center;'); // Wrong element!
+}
+```
+
+**Result:**
+```css
+/* Text element gets flex properties */
+.node-text { 
+  display: flex;           /* ❌ Text should not be a flex container */
+  justify-content: center; /* ❌ Has nothing to center (no children) */
+}
+```
+
+**Why This is Wrong:**
+- Text nodes are **leaf nodes** (no children)
+- Flexbox is for **containers** with children
+- Applying flex to text has no effect
+- Parent needs flex to position its text child
+
+---
+
+### **Root Cause**
+
+**Misunderstanding of Flexbox Model:**
+```
+┌─────────────────────────┐
+│  Parent Container       │  ← Should have flex properties
+│  (needs display: flex)  │
+│                         │
+│   ┌─────────────┐      │
+│   │ Text Child  │      │  ← Positioned by parent's flex
+│   └─────────────┘      │
+│                         │
+└─────────────────────────┘
+```
+
+**Incorrect Assumption:**
+- Applied flex to text itself
+- Text has no children to align
+- Parent didn't know how to position text
+
+---
+
+### **Solution**
+
+**Apply flex properties to parent container:**
+
+```typescript
+// ✅ FIXED: Check parent for text children, apply flex to parent
+if (node.type !== 'TEXT' && node.children && node.children.length > 0) {
+  const textChild = node.children.find(child => child.type === 'TEXT');
+  
+  // Apply flexbox if text has alignment AND parent doesn't have auto-layout
+  if (textChild && textChild.style && !(node.layoutMode && node.layoutMode !== 'NONE')) {
+    const hasAlignment = textChild.style.textAlignHorizontal || textChild.style.textAlignVertical;
+    if (hasAlignment && !hasAbsoluteChildren) {
+      styles.push('display: flex;');  // ✅ Applied to parent!
+      
+      // Vertical alignment (align-items)
+      if (textChild.style.textAlignVertical === 'CENTER') {
+        styles.push('align-items: center;');
+      }
+      
+      // Horizontal alignment (justify-content)
+      if (textChild.style.textAlignHorizontal === 'CENTER') {
+        styles.push('justify-content: center;');
+      }
+    }
+  }
+}
+```
+
+**Key Fix:**
+1. ✅ Check if **node is parent** (`node.type !== 'TEXT'`)
+2. ✅ Find text children
+3. ✅ Apply flex to **parent node**, not text
+4. ✅ Read alignment from child, apply to parent
+5. ✅ Skip if parent already uses auto-layout (avoid conflicts)
+6. ✅ Skip if parent has absolutely positioned children
+
+---
+
+### **Before vs After**
+
+#### **Before (Broken):**
+```css
+/* Flex on text (wrong) */
+.node-text { 
+  display: flex;
+  justify-content: center;
+  /* Text is not centered because it has no flex parent */
+}
+
+.node-container {
+  /* No positioning info */
+}
+```
+
+#### **After (Fixed):**
+```css
+/* Flex on container (correct) */
+.node-container { 
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* Now properly centers its text child */
+}
+
+.node-text {
+  /* No flex properties needed */
+  font-size: 16px;
+}
+```
+
+---
+
+### **Impact**
+
+✅ **Before:** Flex properties had no effect, text remained unaligned  
+✅ **After:** Text properly centered/aligned within parent containers  
+✅ **Logic Flow:** Check parent → Find text child → Apply flex to parent based on child's alignment
+
+---
+
+### **Testing**
+
+Added verification tests:
+```typescript
+it('should apply flex properties to parent, not text node', () => {
+  const mockNode = {
+    type: 'FRAME',
+    children: [
+      { type: 'TEXT', style: { textAlignHorizontal: 'CENTER' } }
+    ]
+  };
+  
+  const result = service.convert(mockNode);
+  
+  // Parent should have flex
+  expect(result.css).toContain('.node-frame { display: flex');
+  expect(result.css).toContain('justify-content: center');
+  
+  // Text should NOT have flex
+  expect(result.css).not.toContain('.node-text { display: flex');
+});
+```
+
+---
+
+## Bug #6: Figma Flexbox Alignment Not Mapped to CSS
+
+**Date:** 2025-11-21  
+**Severity:** 🔴 Critical (Visual Layout Broken)  
+**Affected Files:** 
+- `apps/server/src/modules/figma/domain/figma.types.ts`
+- `apps/server/src/modules/figma/infrastructure/mappers/figma-api.mapper.ts`
+- `apps/server/src/modules/figma/application/figma-converter.service.ts`
+
+### **Problem**
+
+The converter was **not using Figma's native flexbox alignment properties** (`counterAxisAlignItems`, `primaryAxisAlignItems`), causing layouts to break when components used auto-layout with specific alignment settings.
+
+#### **User Report:**
+> "Under Variants, the layout is broken. Text only, Text + icon, Icon only title should on the left side, and component names such as Rest, Hover, Pressed, Selected, Focus, Disabled must be at the top of their components but the placement is broken."
+
+#### **Visual Example (Broken Layout):**
+
+```
+Expected:                     Actual (Broken):
+┌─────────────────────┐      ┌─────────────────────┐
+│ Text only    [Rest] │      │      Text only      │
+│              [Hover]│      │        [Rest]       │
+│              [Press]│      │       [Hover]       │
+│                     │      │       [Press]       │
+│ Text + icon  [Rest] │      │    Text + icon      │
+│              [Hover]│      │        [Rest]       │
+└─────────────────────┘      └─────────────────────┘
+     ✅ Correct                  ❌ Centered (wrong)
+```
+
+#### **What Was Missing:**
+
+Figma has two critical auto-layout alignment properties:
+- **`counterAxisAlignItems`** - Alignment perpendicular to layout direction (CSS `align-items`)
+- **`primaryAxisAlignItems`** - Alignment along layout direction (CSS `justify-content`)
+
+**These properties were:**
+1. ❌ Not defined in `FigmaNode` interface
+2. ❌ Not extracted from Figma API by mappers
+3. ❌ Not used to generate CSS flexbox properties
+
+---
+
+### **Root Cause**
+
+The converter was **inferring** flex alignment instead of **using Figma's explicit values**.
+
+#### **Broken Logic:**
+
+```typescript
+// ❌ OLD: Trying to infer alignment (guesswork)
+if (node.layoutMode === 'HORIZONTAL') {
+  // No way to know what Figma's alignment actually was!
+  styles.push('align-items: center;'); // Guessing!
+}
+```
+
+**Why This Failed:**
+- Figma allows `MIN`, `MAX`, `CENTER`, `BASELINE`, `STRETCH`, `SPACE_BETWEEN` for alignment
+- The converter had no access to these values
+- All layouts defaulted to centered alignment
+- User-specified left/right/top/bottom alignment was lost
+
+---
+
+### **Solution**
+
+Added full support for Figma's alignment properties across all layers.
+
+#### **Step 1: Add Properties to Domain Types**
+
+```typescript
+// ✅ FIXED: figma.types.ts
+export interface FigmaNode {
+  // ... existing properties
+  layoutPositioning?: 'AUTO' | 'ABSOLUTE';
+  counterAxisAlignItems?: 'MIN' | 'MAX' | 'CENTER' | 'BASELINE' | 'STRETCH';
+  primaryAxisAlignItems?: 'MIN' | 'MAX' | 'CENTER' | 'SPACE_BETWEEN';
+}
+```
+
+#### **Step 2: Extract from API in Mapper**
+
+```typescript
+// ✅ FIXED: figma-api.mapper.ts
+export const figmaApiToDomain = (apiNode: any): FigmaNode => {
+  return {
+    // ... existing mappings
+    layoutPositioning: apiNode.layoutPositioning,
+    counterAxisAlignItems: apiNode.counterAxisAlignItems,
+    primaryAxisAlignItems: apiNode.primaryAxisAlignItems,
+    // ...
+  };
+};
+```
+
+#### **Step 3: Map to CSS in Converter**
+
+```typescript
+// ✅ FIXED: figma-converter.service.ts
+
+// Helper function to convert Figma alignment to CSS
+private mapFigmaAlignToCSS(
+  alignment: 'MIN' | 'MAX' | 'CENTER' | 'BASELINE' | 'STRETCH' | 'SPACE_BETWEEN' | undefined
+): string {
+  const map = {
+    'MIN': 'flex-start',
+    'MAX': 'flex-end',
+    'CENTER': 'center',
+    'BASELINE': 'baseline',
+    'STRETCH': 'stretch',
+    'SPACE_BETWEEN': 'space-between',
+  };
+  return map[alignment || 'MIN'] || 'flex-start';
+}
+
+// Apply in generateStyles:
+if (hasAutoLayout) {
+  styles.push('display: flex;');
+  
+  // Use Figma's ACTUAL alignment values
+  if (node.primaryAxisAlignItems) {
+    styles.push(`justify-content: ${this.mapFigmaAlignToCSS(node.primaryAxisAlignItems)};`);
+  }
+  
+  if (node.counterAxisAlignItems) {
+    styles.push(`align-items: ${this.mapFigmaAlignToCSS(node.counterAxisAlignItems)};`);
+  }
+}
+```
+
+---
+
+### **Alignment Mapping Table**
+
+| Figma Value | CSS Value | Description |
+|-------------|-----------|-------------|
+| `MIN` | `flex-start` | Align to start (left/top) |
+| `MAX` | `flex-end` | Align to end (right/bottom) |
+| `CENTER` | `center` | Center alignment |
+| `BASELINE` | `baseline` | Align text baselines |
+| `STRETCH` | `stretch` | Fill container |
+| `SPACE_BETWEEN` | `space-between` | Distribute evenly |
+
+---
+
+### **Before vs After**
+
+#### **Before (Broken):**
+
+```css
+/* Generic guessed alignment */
+.variants-container {
+  display: flex;
+  flex-direction: horizontal;
+  align-items: center;      /* ❌ Always centered (guessed) */
+  justify-content: center;  /* ❌ Always centered (guessed) */
+}
+```
+
+**Result:** All components centered, ignoring user's Figma alignment settings.
+
+#### **After (Fixed):**
+
+```css
+/* Using Figma's actual values */
+.variants-container {
+  display: flex;
+  flex-direction: horizontal;
+  align-items: flex-start;    /* ✅ From counterAxisAlignItems: 'MIN' */
+  justify-content: flex-start; /* ✅ From primaryAxisAlignItems: 'MIN' */
+}
+```
+
+**Result:** Components align exactly as designed in Figma.
+
+---
+
+### **Impact**
+
+✅ **Before:** All auto-layout containers defaulted to centered alignment  
+✅ **After:** Alignment matches Figma design pixel-perfectly  
+✅ **User Benefit:** "Variants" section now displays correctly with left-aligned titles and top-aligned components
+
+---
+
+### **Testing**
+
+Added tests to verify alignment mapping:
+
+```typescript
+describe('Figma alignment properties', () => {
+  it('should map counterAxisAlignItems to CSS align-items', () => {
+    const node = {
+      type: 'FRAME',
+      layoutMode: 'HORIZONTAL',
+      counterAxisAlignItems: 'MIN',
+      // ...
+    };
+    
+    const result = service.convert(node);
+    expect(result.css).toContain('align-items: flex-start');
+  });
+  
+  it('should map primaryAxisAlignItems to CSS justify-content', () => {
+    const node = {
+      type: 'FRAME',
+      layoutMode: 'VERTICAL',
+      primaryAxisAlignItems: 'SPACE_BETWEEN',
+      // ...
+    };
+    
+    const result = service.convert(node);
+    expect(result.css).toContain('justify-content: space-between');
+  });
+});
+```
+
+---
+
+### **Files Modified**
+
+1. **`figma.types.ts`** - Added 3 new optional properties
+2. **`figma-api.mapper.ts`** - Extracted properties from API response
+3. **`figma-converter.service.ts`** - 
+   - Added `mapFigmaAlignToCSS()` helper
+   - Updated flexbox CSS generation to use actual Figma values
+   - Removed alignment inference logic
+
+---
+
+## Key Design Decisions
+
+### **Domain Entities: Interface vs Class**
+
+**Decision:** Use `interface` for all domain entities (FigmaNode, Paint, Color, etc.)
+
+**Rationale:**
+
+#### **Why Interfaces:**
+
+1. **Data-Only Structures:**
+   - Domain entities are pure data (no behavior)
+   - No methods to attach to nodes
+   - Classes would add unnecessary overhead
+
+2. **Massive JSON Tree:**
+   - Figma files contain thousands of nodes
+   - Each node as a class instance = unnecessary memory
+   - Interfaces compile away (zero runtime cost)
+
+3. **Direct JSON Mapping:**
+   ```typescript
+   // ✅ With interface: Zero conversion
+   const node: FigmaNode = apiResponse.document;
+   
+   // ❌ With class: Must instantiate every node
+   const node = new FigmaNodeClass(apiResponse.document);
+   // ... recursively for thousands of nodes
+   ```
+
+4. **Performance:**
+   - Interface: 0 bytes in production bundle
+   - Class: Adds constructor + prototype overhead
+   - Thousands of nodes = significant memory savings
+
+#### **When to Use Classes Instead:**
+
+Use classes only when you need:
+- Methods on entities (e.g., `node.render()`, `node.validate()`)
+- Inheritance with behavior
+- Private fields or encapsulation
+- Runtime type checking with `instanceof`
+
+**Our Case:** We only **read and transform** data, so interfaces are the efficient and correct choice.
+
+---
+
 ## Summary Statistics
 
 | Metric | Value |
 |--------|-------|
-| **Total Bugs Fixed** | 3 |
-| **Critical Bugs** | 1 (Null-safety) |
-| **Major Bugs** | 2 (Positioning, Layout Direction) |
-| **Tests Added** | 8 (7 mapper + 1 converter) |
+| **Total Bugs Fixed** | 6 |
+| **Critical Bugs** | 2 (Null-safety, Flexbox Alignment) |
+| **Major Bugs** | 4 (Positioning, Layout Direction, Text Alignment, Flex Application) |
+| **Design Decisions** | 1 (Interface vs Class) |
+| **Tests Added** | 10+ (7 mapper + 3 converter + alignment tests) |
 | **Tests Updated** | 1 (vertical layout verification) |
 | **Total Test Coverage** | 112 tests across all layers |
-| **Files Modified** | 4 (mapper, converter, test files, decision-flow) |
+| **Files Modified** | 6 (types, mapper, converter, test files, decision-flow) |
 
 ---
 

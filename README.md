@@ -1,111 +1,181 @@
 # Figma to HTML/CSS Converter
 
-This monorepo contains a Full Stack application that converts Figma designs into visually identical HTML/CSS code.
+A high-performance web application that converts Figma designs into production-ready HTML and CSS code.
 
-## 🏗 Architecture Overview
+## 🎯 Purpose
 
-The project follows a **Clean Architecture** approach for the backend and a **Component-Based** architecture for the frontend, structured as a monorepo.
+Transform Figma designs into pixel-perfect HTML/CSS without manual coding. Simply provide a Figma file key and API token to get clean, semantic code.
 
-### Monorepo Structure
-- **`apps/client`**: Next.js frontend application.
-- **`apps/server`**: NestJS backend application.
+## 🚀 Quick Start
 
-This separation ensures that the UI concerns (Client) are completely decoupled from the business logic and external API integrations (Server).
+```bash
+# Install dependencies
+cd apps/server && npm install
+cd ../client && npm install
+
+# Start backend (port 3000)
+cd apps/server && npm run start:dev
+
+# Start frontend (port 3001)
+cd apps/client && npm run dev
+```
+
+## 🏗️ Architecture
+
+### **Clean Architecture with NestJS**
+
+```
+┌─────────────────────────────────────────┐
+│         PRESENTATION LAYER              │ → HTTP endpoints, DTOs
+├─────────────────────────────────────────┤
+│         APPLICATION LAYER               │ → Business logic, conversion
+├─────────────────────────────────────────┤
+│         DOMAIN LAYER                    │ → Types, interfaces
+├─────────────────────────────────────────┤
+│         INFRASTRUCTURE LAYER            │ → External APIs, mappers
+└─────────────────────────────────────────┘
+```
+
+### **Backend Structure (`apps/server`)**
+
+```
+src/modules/figma/
+├── presentation/
+│   └── figma.controller.ts         # HTTP endpoints, request handling
+├── application/
+│   ├── figma-converter.service.ts  # Core conversion logic
+│   └── dto/convert-figma.dto.ts    # Input validation
+├── domain/
+│   └── figma.types.ts              # TypeScript interfaces
+└── infrastructure/
+    ├── figma-api.service.ts        # Figma API client
+    └── mappers/figma-api.mapper.ts # API ↔ Domain transformation
+```
+
+### **Frontend Structure (`apps/client`)**
+
+Simple Next.js app with:
+- **Single Page Component** (`app/page.tsx`)
+- **TanStack Query** for server state
+- **Tailwind CSS** for styling
+- **No Redux/Zustand** (YAGNI principle)
+
+## 📊 Data Flow
+
+```
+1. User Input → fileKey + token
+2. Frontend → POST /figma/convert
+3. Controller → Validates DTO
+4. Infrastructure → Fetch from Figma API
+5. Mapper → Transform to domain types
+6. Converter → Generate HTML/CSS
+7. Response → Return to frontend
+```
+
+## 🔑 Key Design Decisions
+
+### **Backend**
+
+| Decision | Reasoning |
+|----------|-----------|
+| **Clean Architecture** | Separation of concerns, testability, maintainability |
+| **Interfaces over Classes** | Zero runtime overhead for JSON tree with thousands of nodes |
+| **POST for `/convert`** | Token security (not in URL), semantic action |
+| **Retry with Exponential Backoff** | Handle rate limits (429), service issues (503) |
+| **No Caching** | Stateless, designs change frequently |
+
+### **Frontend**
+
+| Decision | Reasoning |
+|----------|-----------|
+| **No Zustand/Redux** | Single component, simple state → `useState` sufficient |
+| **TanStack Query** | Client-side caching, refetch control, loading states |
+| **Single Page** | MVP focus, minimal complexity |
+| **No Auto-Refetch** | Manual conversion trigger, cache never stales |
+
+## 🧩 Core Conversion Algorithm
+
+```typescript
+// 1. Find all artboards (FRAME, SECTION, COMPONENT)
+const artboards = findAllArtboards(rootNode);
+
+// 2. Process each artboard recursively
+for (const artboard of artboards) {
+  html += processNode(artboard, isRoot=true);
+  css += generateStyles(artboard);
+}
+
+// 3. Key transformations:
+- Figma fills → CSS backgrounds/gradients
+- Figma effects → CSS shadows/filters
+- Figma layout → CSS flexbox/absolute positioning
+- Figma text → CSS typography
+```
+
+## 🐛 Notable Bugs Fixed
+
+1. **Null-Safety in Mappers** - Added guards for optional nested properties (crashes prevented)
+2. **Multiple Artboards Positioning** - All artboards now use consistent `position: relative` for flex layout
+3. **Vertical Stacking** - Changed artboard container from horizontal to vertical layout
+4. **Text Alignment** - Switched from `text-align` (doesn't work on inline) to flexbox on parent
+5. **Flex Application Logic** - Fixed applying flex to parents, not text children themselves
+6. **Figma Alignment Mapping** - Map `counterAxisAlignItems`/`primaryAxisAlignItems` to CSS flexbox
+
+## 🧪 Testing
+
+**112 tests** across all layers:
+
+```bash
+# Run all tests
+npm test
+
+# Coverage report
+npm run test:cov
+```
+
+| Layer | Tests | Coverage Focus |
+|-------|-------|----------------|
+| **Application** | 38 | HTML/CSS generation, edge cases |
+| **Infrastructure** | 38 | API calls, mapping, null-safety |
+| **Presentation** | 13 | Request flow, error handling |
+| **DTOs** | 13 | Validation rules |
+
+## 🔧 Configuration
+
+### **Required Environment Variables**
+
+None! The application uses:
+- Frontend: `http://localhost:3001`
+- Backend: `http://localhost:3000`
+- Figma API: Token provided per request
+
+
+## 📈 Performance Optimizations
+
+- **Interfaces over Classes**: Zero runtime overhead for type checking
+- **No Server-Side Caching**: Stateless design, designs change frequently
+- **Efficient Tree Traversal**: Single-pass recursive processing
+- **Minimal Dependencies**: Only essential packages
+- **Retry with Backoff**: Handles transient failures (429, 503) gracefully
+
+## 🛡️ Error Handling
+
+- **Retry Logic**: Exponential backoff for transient failures
+- **Graceful Degradation**: Placeholder gradients for missing images
+- **Validation**: DTO validation with class-validator
+- **HTTP Status Preservation**: Correct error codes from API to client
+
+## 📚 Additional Resources
+
+- [`bug-fix.md`](bug-fix.md) - Detailed bug analysis and fixes
+
+## 💡 Principles
+
+- **YAGNI** (You Aren't Gonna Need It) - No premature optimization
+- **KISS** (Keep It Simple, Stupid) - Minimal complexity
+- **Clean Architecture** - Clear separation of concerns
+- **Test-Driven Development** - Comprehensive test coverage
 
 ---
 
-## 🖥 Frontend (`apps/client`)
-
-Built with **Next.js 15 (App Router)**.
-
-### Key Technologies & Decisions
-- **State Management: Zustand**
-  - *Why?* We need a global store to hold the `fileKey`, `token`, and the resulting `html/css` across components (Form, Preview, Code View). Zustand provides a minimal, hook-based API without the boilerplate of Redux/Context.
-- **Data Fetching: TanStack Query (React Query)**
-  - *Why?* Handling API states (loading, error, success) manually is error-prone. React Query handles caching and request states automatically.
-- **Styling: Tailwind CSS**
-  - *Why?* Speed of development for the UI shell itself. (Note: The *generated* CSS for the Figma conversion is standard vanilla CSS to ensure portability).
-
-### API Client
-- Located in `lib/api.ts`.
-- Uses **Axios** for robust HTTP handling.
-- The conversion endpoint is decoupled from the UI, allowing easy swapping or mocking.
-
----
-
-## ⚙️ Backend (`apps/server`)
-
-Built with **NestJS**, strictly adhering to **Clean Architecture** principles to ensure maintainability and testability.
-
-### Module Structure (`src/modules/figma`)
-The core logic is encapsulated in a dedicated `FigmaModule`.
-
-#### 1. Domain Layer (`domain/`)
-- **`figma.types.ts`**: Pure TypeScript interfaces defining the shape of Figma Nodes (Frames, Text, Vectors, etc.).
-- *Decision*: We use `interfaces` instead of `classes` here because this data is read-only from the API. Instantiating thousands of classes for a large design file would be computationally expensive and unnecessary.
-
-#### 2. Application Layer (`application/`)
-- **`figma-converter.service.ts`**: The core business logic.
-  - **Recursive Traversal**: The converter recursively walks the Figma node tree.
-  - **Context Object**: A context object (`cssRules`) is passed down the tree to collect CSS rules without polluting the global state, ensuring thread safety.
-  - **Hybrid Positioning Strategy**:
-    - **Root/Artboard**: Treated as `position: relative`.
-    - **Auto Layout**: If `layoutMode` is detected, we generate `display: flex` properties.
-    - **Absolute Fallback**: For standard frames, we calculate `position: absolute` coordinates relative to the parent to ensure "pixel-perfect" fidelity, matching the `absoluteBoundingBox` provided by Figma.
-  - **Style Parsing**: Dedicated helpers (`parseFills`, `parseTypography`, `parseEffects`) handle the complexity of Figma's paint arrays (gradients, images, solid colors).
-
-- **DTOs (`dto/`)**:
-  - `ConvertFigmaDto`: Uses `class-validator` to ensure the client sends valid keys and tokens before processing begins.
-
-#### 3. Infrastructure Layer (`infrastructure/`)
-- **`figma-api.service.ts`**: Handles the external communication with Figma's REST API.
-- *Why separate?* If Figma updates their API or we switch to a different provider (e.g., a local file parser), we only update this file. The converter service remains untouched.
-
-#### 4. Presentation Layer (`presentation/`)
-- **`figma.controller.ts`**: Defines the HTTP endpoints (`POST /figma/convert`). It orchestrates the flow between the API Service and the Converter Service.
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js (v18+)
-- npm
-
-### Installation
-```bash
-# Install root dependencies (if any)
-npm install
-
-# Install Client dependencies
-cd apps/client
-npm install
-
-# Install Server dependencies
-cd ../server
-npm install
-```
-
-### Running the App
-
-**1. Start the Backend**
-```bash
-cd apps/server
-npm run start
-# Server runs on http://localhost:3000
-```
-
-**2. Start the Frontend**
-```bash
-cd apps/client
-npm run dev
-# Client runs on http://localhost:3001 (or 3000 if server is off)
-```
-
-### Usage
-1. Go to the frontend URL.
-2. Enter your **Figma File Key** (from the URL: `figma.com/file/KEY/...`).
-3. Enter your **Personal Access Token** (from Figma Account Settings).
-4. Click **Convert**.
-5. Download or Preview the result.
-
+**Built with** NestJS, Next.js, TypeScript, and hard work 🧑🏻‍💻
