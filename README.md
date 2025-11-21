@@ -20,6 +20,51 @@ cd apps/server && npm run start:dev
 cd apps/client && npm run dev
 ```
 
+## 📖 How to Use
+
+### **Step 1: Get Your Figma API Token**
+
+1. Go to [Figma Account Settings](https://www.figma.com/settings)
+2. Scroll to **Personal Access Tokens**
+3. Click **Generate new token**
+4. Give it a name (e.g., "HTML Converter")
+5. Copy the token (you'll only see it once!)
+
+### **Step 2: Get the Figma File Key**
+
+From your Figma file URL:
+```
+https://www.figma.com/design/[FILE_KEY]/[FILE_NAME]
+                            ^^^^^^^^
+                         This is your file key
+```
+
+**Example:**
+```
+URL: https://www.figma.com/design/abc123xyz/My-Design
+File Key: abc123xyz
+```
+
+### **Step 3: Convert Your Design**
+
+1. Open the app at `http://localhost:3001`
+2. Paste your **File Key**
+3. Paste your **API Token**
+4. Click **Convert to HTML/CSS**
+5. Preview the result in the browser
+6. Download the HTML/CSS files
+7. Open the downloaded `index.html` in any browser to view the converted design
+
+### **Testing with the Assignment Figma File**
+
+The provided assignment file:
+```
+URL: https://www.figma.com/design/MxMXpjiLPbdHlratvH0Wdy/Softlight-Engineering-Take-Home-Assignment
+File Key: MxMXpjiLPbdHlratvH0Wdy
+```
+
+**Important:** Copy this file to your personal Figma workspace first, then use your own API token to access it.
+
 ## 🏗️ Architecture
 
 ### **Clean Architecture with NestJS**
@@ -165,6 +210,43 @@ None! The application uses:
 - **Validation**: DTO validation with class-validator
 - **HTTP Status Preservation**: Correct error codes from API to client
 
+## ⚠️ Known Limitations
+
+### **1. Images and Assets**
+- **Image Fills**: Replaced with placeholder gradients (image URLs not downloaded/embedded)
+- **SVG Vectors**: Not exported; shapes rendered as rectangles with fills
+- **Icons**: Not preserved; only basic shapes supported
+
+### **2. Typography**
+- **Custom Fonts**: Uses system fallbacks if Figma fonts unavailable locally
+- **Text Overflow**: Ellipsis and truncation may differ from Figma
+- **Text Decoration**: Underline/strikethrough not fully implemented
+
+### **3. Advanced Effects**
+- **Blur Effects**: Background blur and layer blur not supported
+- **Blend Modes**: Multiply, overlay, screen modes not implemented
+- **Shadows**: Basic drop shadows work; inner shadows may have differences
+
+### **4. Interactivity**
+- **Component States**: Hover, pressed, disabled states rendered but not interactive
+- **Variants**: All variants rendered statically; no state switching
+- **Prototyping**: Click interactions and animations not preserved
+
+### **5. Layout**
+- **Responsive Design**: Output is fixed-width; no media queries
+- **Constraints**: Figma's resizing constraints not implemented
+- **Complex Auto-layout**: Nested auto-layout with mixed absolute positioning may have minor spacing differences
+
+### **6. Figma Features**
+- **Boolean Operations**: Union, subtract, intersect not processed
+- **Masks**: Clipping masks not fully supported
+- **Plugins**: Plugin-generated content may not convert correctly
+- **Comments/Annotations**: Not included in output
+
+### **7. Browser Compatibility**
+- **Tested on**: Chrome, Safari (latest versions)
+- **CSS Features**: Uses modern flexbox, gradients (IE11 not supported)
+
 ## 📚 Additional Resources
 
 - [`bug-fix.md`](bug-fix.md) - Detailed bug analysis and fixes
@@ -178,4 +260,4 @@ None! The application uses:
 
 ---
 
-**Built with** NestJS, Next.js, TypeScript, and hard work 🧑🏻‍💻
+**Built with** NestJS, Next.js, TypeScript, AI assistance (not vibe coding, though), and hard work 🧑🏻‍💻
