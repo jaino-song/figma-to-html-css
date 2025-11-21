@@ -100,7 +100,8 @@ describe('ConvertFigmaDto', () => {
 
         expect(errors.length).toBeGreaterThan(0);
         expect(errors[0].property).toBe('fileKey');
-        expect(errors[0].constraints).toHaveProperty('isNotEmpty');
+        expect(errors[0].constraints).toHaveProperty('matches');
+        expect(errors[0].constraints?.matches).toBe('fileKey must not be only whitespace');
     });
 
     // tests that whitespace-only token fails validation
@@ -113,7 +114,8 @@ describe('ConvertFigmaDto', () => {
 
         expect(errors.length).toBeGreaterThan(0);
         expect(errors[0].property).toBe('token');
-        expect(errors[0].constraints).toHaveProperty('isNotEmpty');
+        expect(errors[0].constraints).toHaveProperty('matches');
+        expect(errors[0].constraints?.matches).toBe('token must not be only whitespace');
     });
 
     // tests that both fields missing fails validation with multiple errors
