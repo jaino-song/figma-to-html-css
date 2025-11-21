@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { FigmaConverterService } from './src/modules/figma/application/figma-converter.service';
+import { FigmaConverterService } from '../src/modules/figma/application/figma-converter.service';
 
 // Load the figma-response.json
 const figmaResponsePath = path.join(__dirname, 'figma-response.json');
