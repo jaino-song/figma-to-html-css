@@ -228,12 +228,15 @@ convert(rootNode: FigmaNode)
 1. **Artboard Discovery:**
    ```
    Root node type?
-       ├─ DOCUMENT/CANVAS? → Find ALL FRAMEs with children
-       ├─ Multiple frames? → Convert all, wrap in container
-       ├─ Single frame? → Convert without wrapper
-       └─ No frames? → Use root node
+       ├─ DOCUMENT/CANVAS? → Find ALL FRAMEs/SECTIONs/COMPONENTs
+       ├─ Multiple artboards? → Convert all, wrap in container
+       ├─ Single artboard? → Convert without wrapper
+       └─ No artboards? → Use root node
    ```
-   **Why?** Figma files often have multiple artboards (screens, components); converting all provides complete output.
+   **Why?** Figma files often have multiple artboards (screens, sections, components); converting all provides complete output.
+   **Supported Types:** FRAME, SECTION (Figma's organizational containers), COMPONENT
+   
+   **Container Layout:** When multiple artboards are detected, they are wrapped in `.artboards-container` with `flex-direction: column` to **stack them vertically** (each artboard appears below the previous one). This provides a natural scrolling experience when viewing multiple screens/components.
 
 2. **Tree Traversal:**
    ```

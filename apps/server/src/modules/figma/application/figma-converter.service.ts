@@ -1,73 +1,56 @@
-
 import { Injectable } from '@nestjs/common';
 import { FigmaNode, Paint, Color, Effect, TypeStyle } from '../domain/figma.types';
 
-/**
- * Application Layer: FigmaConverterService
- * 
- * RESPONSIBILITY:
- * This service contains the CORE BUSINESS LOGIC of the application.
- * It translates the raw Figma Node tree (Domain Entity) into HTML and CSS strings.
- * 
- * CLEAN ARCHITECTURE NOTE:
- * This service depends only on the Domain (FigmaNode types) and standard libraries.
- * It does not know about Controllers (HTTP) or specific external APIs.
- */
+// This service contains the core business logic of the application.
+// It translates the raw Figma node tree into HTML and CSS strings.
 @Injectable()
 export class FigmaConverterService {
-
-  /**
-   * Main entry point for conversion.
-   * @param rootNode The root node of the Figma document.
-   * @returns An object containing the generated HTML and CSS.
-   */
   convert(rootNode: FigmaNode): { html: string; css: string } {
-    // 1. Find all frames/artboards in the document
+    // Find all frames/artboards in the document
     const artboards = this.findAllArtboards(rootNode);
     
-    // 2. If no artboards found, use root node
+    // If no artboards found, use root node
     const nodesToProcess = artboards.length > 0 ? artboards : [rootNode];
 
-    // 3. Create a context to hold CSS rules
+    // Create a context to hold CSS rules
     const context = { 
       cssRules: [] as string[], 
       idCounter: 0 
     };
     
-    // 4. Process each artboard and combine HTML
+    // Process each artboard and combine HTML
     // All artboards are treated as root containers since they're all top-level in the flex layout
     const artboardsHtml = nodesToProcess.map((artboard) => {
       return this.processNode(artboard, artboard, context, true);
     }).join('');
     
-    // 5. Wrap all artboards in a container
+    // Wrap all artboards in a container
     const html = nodesToProcess.length > 1 
       ? `<div class="artboards-container">${artboardsHtml}</div>`
       : artboardsHtml;
     
-    // 6. Add global resets and container styles
-    const baseCss = `
-      body { 
-        font-family: sans-serif; 
-        margin: 0; 
-        padding: 0; 
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
-        background-color: #f5f5f5;
-      }
-      * { box-sizing: border-box; }
-      
-      .artboards-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 32px;
-        padding: 32px;
-        justify-content: center;
-        align-items: flex-start;
-      }
-    `;
+    // Add global resets and container styles
+      const baseCss = `
+        body {
+          font-family: sans-serif;
+          margin: 0;
+          padding: 0;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          min-height: 100vh;
+          background-color: #f5f5f5;
+        }
+        * { box-sizing: border-box; }
+
+        .artboards-container {
+          display: flex;
+          flex-direction: column;
+          gap: 32px;
+          padding: 32px;
+          align-items: center;
+        }
+      `;
 
     return {
       html,
@@ -75,48 +58,43 @@ export class FigmaConverterService {
     };
   }
 
-  /**
-   * Helper to find all top-level frames/artboards in the document
-   * Typical Figma structure: DOCUMENT → CANVAS → [FRAME, FRAME, ...]
-   * Returns all FRAME or COMPONENT nodes at the canvas level
-   */
+  // Helper to find all top-level frames/artboards in the document
+  // Figma structure: DOCUMENT → CANVAS → [FRAME/SECTION/COMPONENT, ...]
+  // Returns all container nodes (FRAME, SECTION, COMPONENT) at the canvas level
   private findAllArtboards(node: FigmaNode): FigmaNode[] {
-    // If we're at a CANVAS level, get all direct FRAME/COMPONENT children
+    const artboards: FigmaNode[] = [];
+    
+    // If we're at a CANVAS level, get all direct container children
     if (node.type === 'CANVAS' && node.children) {
+      // Include FRAME, SECTION, and COMPONENT types (all are valid artboards/containers)
       return node.children.filter(child => 
-        (child.type === 'FRAME' || child.type === 'COMPONENT') && 
-        child.children && 
-        child.children.length > 0
+        (child.type === 'FRAME' || child.type === 'SECTION' || child.type === 'COMPONENT')
       );
     }
     
-    // If we're at a DOCUMENT level, search its CANVAS children
+    // If we're at a DOCUMENT level, collect artboards from all CANVAS children
     if (node.type === 'DOCUMENT' && node.children) {
       for (const child of node.children) {
-        const artboards = this.findAllArtboards(child);
-        if (artboards.length > 0) {
-          return artboards;
-        }
+        artboards.push(...this.findAllArtboards(child));
       }
+      return artboards;
     }
     
     // Otherwise, recursively search for CANVAS nodes
     if (node.children) {
       for (const child of node.children) {
-        const artboards = this.findAllArtboards(child);
-        if (artboards.length > 0) {
-          return artboards;
+        const found = this.findAllArtboards(child);
+        if (found.length > 0) {
+          artboards.push(...found);
         }
       }
     }
     
-    return [];
+    return artboards;
   }
 
-  /**
-   * Recursive function to generate HTML for a node and its children.
-   * Side Effect: Pushes generated CSS rules to context.cssRules
-   */
+  // Recursive function to generate HTML for a node and its children.
+  // Pushes generated CSS rules to context.cssRules
   private processNode(node: FigmaNode, parentNode: FigmaNode, context: { cssRules: string[]; idCounter: number }, isRoot = false): string {
     if (node.visible === false) return '';
 
@@ -144,32 +122,69 @@ export class FigmaConverterService {
     return `<div class="${className}">${content}</div>`;
   }
 
-  /**
-   * Generates the CSS string for a single node.
-   * Handles Positioning, Size, Colors, Typography, and Effects.
-   */
+  // Generates the CSS string for a single node.
+  // Handles Positioning, Size, Colors, Typography, and Effects.
   private generateStyles(node: FigmaNode, parentNode: FigmaNode, isRoot: boolean): string {
     const styles: string[] = [];
 
-    // 1. Dimensions
+    // Dimensions
     if (node.absoluteBoundingBox) {
         styles.push(`width: ${node.absoluteBoundingBox.width}px;`);
         styles.push(`height: ${node.absoluteBoundingBox.height}px;`);
     }
 
-    // 2. Positioning Strategy
+    // Positioning Strategy
     // - Root: Relative (container)
+    // - layoutPositioning=ABSOLUTE: Force absolute positioning (even in auto-layout)
     // - Parent has Auto Layout: Static (let Flexbox handle it)
+    // - Has children with absolute positioning: Relative (to contain them)
     // - Default: Absolute (pixel-perfect placement)
-    
     const parentHasAutoLayout = parentNode.layoutMode && parentNode.layoutMode !== 'NONE';
+    const hasAutoLayout = node.layoutMode && node.layoutMode !== 'NONE';
+    const forceAbsolute = node.layoutPositioning === 'ABSOLUTE';
+    
+    // Check if this node has children that will need absolute positioning
+    const hasAbsoluteChildren = node.children && node.children.length > 0 && 
+      node.children.some(child => 
+        child.layoutPositioning === 'ABSOLUTE' || 
+        (!child.layoutMode || child.layoutMode === 'NONE')
+      );
 
     if (isRoot) {
         styles.push('position: relative;');
         styles.push('overflow: hidden;');
         styles.push('background-color: white;');
+    } else if (forceAbsolute) {
+        // Figma allows absolute positioning within auto-layout
+        styles.push('position: absolute;');
+        
+        // Calculate position relative to the parent's top-left corner
+        if (node.absoluteBoundingBox && parentNode.absoluteBoundingBox) {
+            const x = node.absoluteBoundingBox.x - parentNode.absoluteBoundingBox.x;
+            const y = node.absoluteBoundingBox.y - parentNode.absoluteBoundingBox.y;
+            styles.push(`left: ${x}px;`);
+            styles.push(`top: ${y}px;`);
+        }
     } else if (parentHasAutoLayout) {
-        styles.push('position: static;'); 
+        // Parent has auto-layout, so this element participates in flex flow
+        if (hasAbsoluteChildren) {
+            // Needs to be a positioning context for absolutely positioned children
+            styles.push('position: relative;');
+        } else {
+            styles.push('position: static;');
+        }
+    } else if (hasAbsoluteChildren) {
+        // Parent doesn't have auto-layout, so this must be absolutely positioned
+        // But also needs to be a positioning context for its own children
+        styles.push('position: absolute;');
+        
+        // Calculate position relative to the parent's top-left corner
+        if (node.absoluteBoundingBox && parentNode.absoluteBoundingBox) {
+            const x = node.absoluteBoundingBox.x - parentNode.absoluteBoundingBox.x;
+            const y = node.absoluteBoundingBox.y - parentNode.absoluteBoundingBox.y;
+            styles.push(`left: ${x}px;`);
+            styles.push(`top: ${y}px;`);
+        }
     } else {
         styles.push('position: absolute;');
         
@@ -182,48 +197,27 @@ export class FigmaConverterService {
         }
     }
 
-    // 3. Flexbox Layout (If this node is a container with Auto Layout)
+    // Flexbox Layout (If this node is a container with Auto Layout)
     if (node.layoutMode && node.layoutMode !== 'NONE') {
         styles.push('display: flex;');
         styles.push(`flex-direction: ${node.layoutMode === 'HORIZONTAL' ? 'row' : 'column'};`);
         styles.push(`gap: ${node.itemSpacing || 0}px;`);
         styles.push(`padding: ${node.paddingTop || 0}px ${node.paddingRight || 0}px ${node.paddingBottom || 0}px ${node.paddingLeft || 0}px;`);
         
-        // Check if this container has text children with alignment
-        let align = 'flex-start';
-        let justify = 'flex-start';
+        // Map Figma alignment to CSS flexbox
+        // counterAxisAlignItems controls cross-axis (align-items)
+        // primaryAxisAlignItems controls main-axis (justify-content)
+        const alignItems = this.mapFigmaAlignToCSS(node.counterAxisAlignItems) || 'flex-start';
+        const justifyContent = this.mapFigmaAlignToCSS(node.primaryAxisAlignItems) || 'flex-start';
         
-        if (node.children && node.children.length > 0) {
-            const textChild = node.children.find(child => child.type === 'TEXT');
-            if (textChild && textChild.style) {
-                // Use text child's alignment for the auto-layout container
-                const verticalAlignment = textChild.style.textAlignVertical;
-                if (verticalAlignment === 'CENTER') {
-                    align = 'center';
-                } else if (verticalAlignment === 'BOTTOM') {
-                    align = 'flex-end';
-                } else if (verticalAlignment === 'TOP') {
-                    align = 'flex-start';
-                }
-                
-                const horizontalAlignment = textChild.style.textAlignHorizontal;
-                if (horizontalAlignment === 'CENTER') {
-                    justify = 'center';
-                } else if (horizontalAlignment === 'RIGHT') {
-                    justify = 'flex-end';
-                } else if (horizontalAlignment === 'LEFT') {
-                    justify = 'flex-start';
-                }
-            }
-        }
-        
-        styles.push(`align-items: ${align};`);
-        styles.push(`justify-content: ${justify};`);
+        styles.push(`align-items: ${alignItems};`);
+        styles.push(`justify-content: ${justifyContent};`);
     }
     
-    // 3b. Apply flexbox for text containers (to align text children properly)
+    // Apply flexbox for text containers (to align text children properly)
     // This handles cases where the parent doesn't have auto-layout but contains text
-    if (node.type !== 'TEXT' && node.children && node.children.length > 0) {
+    // BUT we skip this if the node has absolutely positioned children (they handle their own layout)
+    if (node.type !== 'TEXT' && node.children && node.children.length > 0 && !hasAbsoluteChildren) {
         const textChild = node.children.find(child => child.type === 'TEXT');
         // Apply flexbox if text has alignment AND parent doesn't have auto-layout
         if (textChild && textChild.style && !(node.layoutMode && node.layoutMode !== 'NONE')) {
@@ -258,7 +252,7 @@ export class FigmaConverterService {
         }
     }
 
-    // 4. Backgrounds & Fills
+    // Backgrounds & Fills
     // Text nodes handle fills differently (as color), so we skip background generation for them here.
     if (node.fills && node.type !== 'TEXT') {
         const bg = this.parseFills(node.fills);
@@ -267,7 +261,7 @@ export class FigmaConverterService {
         styles.push(`background-color: ${this.rgba(node.backgroundColor)};`);
     }
 
-    // 5. Borders (Strokes)
+    // Borders (Strokes)
     if (node.strokes && node.strokes.length > 0 && node.strokeWeight) {
          const strokePaint = node.strokes.find(p => p.visible !== false);
          if (strokePaint && strokePaint.type === 'SOLID') {
@@ -276,20 +270,20 @@ export class FigmaConverterService {
          }
     }
 
-    // 6. Border Radius
+    // Border Radius
     if (node.cornerRadius) {
         styles.push(`border-radius: ${node.cornerRadius}px;`);
     } else if (node.rectangleCornerRadii) {
         styles.push(`border-radius: ${node.rectangleCornerRadii.map(r => r + 'px').join(' ')};`);
     }
 
-    // 7. Effects (Shadows)
+    // Effects (Shadows)
     if (node.effects) {
         const shadow = this.parseEffects(node.effects);
         if (shadow) styles.push(`box-shadow: ${shadow};`);
     }
 
-    // 8. Typography
+    // Typography
     if (node.type === 'TEXT' && node.style) {
         styles.push(...this.parseTypography(node.style));
         // Apply text color from fills
@@ -304,23 +298,25 @@ export class FigmaConverterService {
     return styles.join(' ');
   }
 
-  // --- Helpers ---
-
+  // Parses the fills for a node.
   private parseFills(fills: Paint[]): string {
     const validFills = fills.filter(f => f.visible !== false);
     if (validFills.length === 0) return '';
     const fill = validFills[validFills.length - 1]; // Top-most layer
-    
+
     if (fill.type === 'SOLID') {
         return this.rgba(fill.color!, fill.opacity);
     } else if (fill.type === 'GRADIENT_LINEAR') {
         return this.parseGradient(fill);
     } else if (fill.type === 'IMAGE') {
-        return `url(${fill.imageRef || ''}) center / cover no-repeat`;
+        // Image fills require proper Figma CDN URLs which aren't available from imageRef hash
+        // For now, show a placeholder gradient to indicate an image was present
+        return 'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%)';
     }
     return '';
   }
 
+  // Parses the gradient for a node.
   private parseGradient(paint: Paint): string {
     if (!paint.gradientStops || !paint.gradientHandlePositions) return '';
     const handles = paint.gradientHandlePositions;
@@ -339,6 +335,7 @@ export class FigmaConverterService {
     return `linear-gradient(${cssAngle}deg, ${stops})`;
   }
 
+  // Parses the effects for a node.
   private parseEffects(effects: Effect[]): string {
     return effects
         .filter(e => e.visible && (e.type === 'DROP_SHADOW' || e.type === 'INNER_SHADOW'))
@@ -354,6 +351,7 @@ export class FigmaConverterService {
         .join(', ');
   }
 
+  // Parses the typography for a node.
   private parseTypography(style: TypeStyle): string[] {
     const css: string[] = [];
     css.push(`font-family: '${style.fontFamily}', sans-serif;`);
@@ -371,6 +369,7 @@ export class FigmaConverterService {
     return css;
   }
 
+  // Converts a Figma color to a CSS rgba color.
   private rgba(color: Color, opacityOverride?: number): string {
     if (!color) return 'transparent';
     const r = Math.round(color.r * 255);
@@ -378,5 +377,23 @@ export class FigmaConverterService {
     const b = Math.round(color.b * 255);
     const a = opacityOverride !== undefined ? opacityOverride : (color.a !== undefined ? color.a : 1);
     return `rgba(${r}, ${g}, ${b}, ${a})`;
+  }
+
+  // Maps a Figma alignment to a CSS alignment.
+  // Used for flexbox layout.
+  private mapFigmaAlignToCSS(alignment?: string): string | undefined {
+    if (!alignment) return undefined;
+    
+    // Map Figma alignment values to CSS flexbox values
+    const alignmentMap: Record<string, string> = {
+      'MIN': 'flex-start',
+      'MAX': 'flex-end',
+      'CENTER': 'center',
+      'BASELINE': 'baseline',
+      'STRETCH': 'stretch',
+      'SPACE_BETWEEN': 'space-between',
+    };
+    
+    return alignmentMap[alignment] || 'flex-start';
   }
 }

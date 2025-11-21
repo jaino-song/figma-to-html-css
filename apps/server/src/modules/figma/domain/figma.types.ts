@@ -2,7 +2,7 @@
 export interface FigmaNode {
   id: string;
   name: string;
-  type: 'DOCUMENT' | 'CANVAS' | 'FRAME' | 'GROUP' | 'VECTOR' | 'BOOLEAN_OPERATION' | 'STAR' | 'LINE' | 'ELLIPSE' | 'REGULAR_POLYGON' | 'RECTANGLE' | 'TEXT' | 'SLICE' | 'COMPONENT' | 'INSTANCE' | 'COMPONENT_SET';
+  type: 'DOCUMENT' | 'CANVAS' | 'FRAME' | 'SECTION' | 'GROUP' | 'VECTOR' | 'BOOLEAN_OPERATION' | 'STAR' | 'LINE' | 'ELLIPSE' | 'REGULAR_POLYGON' | 'RECTANGLE' | 'TEXT' | 'SLICE' | 'COMPONENT' | 'INSTANCE' | 'COMPONENT_SET';
   children?: FigmaNode[];
   absoluteBoundingBox?: { x: number; y: number; width: number; height: number };
   fills?: Paint[];
@@ -13,8 +13,11 @@ export interface FigmaNode {
   characters?: string;
   style?: TypeStyle;
   layoutMode?: 'NONE' | 'HORIZONTAL' | 'VERTICAL';
+  layoutPositioning?: 'AUTO' | 'ABSOLUTE';
   counterAxisSizingMode?: 'FIXED' | 'AUTO';
   primaryAxisSizingMode?: 'FIXED' | 'AUTO';
+  counterAxisAlignItems?: 'MIN' | 'MAX' | 'CENTER' | 'BASELINE' | 'STRETCH';
+  primaryAxisAlignItems?: 'MIN' | 'MAX' | 'CENTER' | 'SPACE_BETWEEN';
   paddingLeft?: number;
   paddingRight?: number;
   paddingTop?: number;

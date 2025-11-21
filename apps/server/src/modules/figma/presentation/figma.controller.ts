@@ -1,8 +1,10 @@
 
-import { Controller, Post, Body, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Get, HttpException, HttpStatus } from '@nestjs/common';
 import { FigmaApiService } from '../infrastructure/repositories/figma-api.repository';
 import { FigmaConverterService } from '../application/figma-converter.service';
 import { ConvertFigmaDto } from '../application/dto/convert-figma.dto';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * Presentation Layer: FigmaController
@@ -46,4 +48,28 @@ export class FigmaController {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
+  /**
+   * Endpoint: GET /figma/test
+   * Test endpoint that uses figma-response2.json mock data for visual verification
+   */
+  // @Get('test')
+  // async test() {
+  //   try {
+  //     // Load the mock figma-response.json file
+  //     const mockDataPath = path.join(process.cwd(), 'figma-response2.json');
+  //     const mockData = JSON.parse(fs.readFileSync(mockDataPath, 'utf-8'));
+
+  //     // Convert the mock data using the converter service
+  //     const result = this.converter.convert(mockData.document);
+
+  //     return result;
+  //   } catch (error) {
+  //     if (error instanceof HttpException) throw error;
+  //     throw new HttpException(
+  //       `Test endpoint failed: ${error.message}`,
+  //       HttpStatus.INTERNAL_SERVER_ERROR,
+  //     );
+  //   }
+  // }
 }

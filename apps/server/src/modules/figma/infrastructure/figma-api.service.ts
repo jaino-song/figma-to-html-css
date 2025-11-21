@@ -1,33 +1,32 @@
-
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import axios from 'axios';
 import { FigmaNode } from '../domain/figma.types';
 import { figmaApiToDomain } from './mappers/figma-api.mapper';
 
-// service to communicate with the Figma REST API
+// Service to communicate with the Figma REST API
 @Injectable()
 export class FigmaApiService {
-  // base URL for all Figma API requests
+  // Base URL for all Figma API requests
   private readonly baseUrl = 'https://api.figma.com/v1';
 
-  // fetches the Figma file structure using the file key and personal access token
+  // Fetches the Figma file structure using the file key and personal access token
   async getFile(fileKey: string, token: string): Promise<FigmaNode> {
 
     try {
-      // making HTTP GET request to Figma API with authentication header
+      // Making HTTP GET request to Figma API with authentication header
       const response = await axios.get(`${this.baseUrl}/files/${fileKey}`, {
         headers: {
           'X-Figma-Token': token,
         },
       });
         
-      // mapping raw API response to domain type with type safety and validation
+      // Mapping raw API response to domain type with type safety and validation
       return figmaApiToDomain(response.data.document);
     } catch (error) {
-      // logging the error for debugging
+      // Logging the error for debugging
       console.error('Error fetching Figma file:', error);
       
-      // throwing HTTP exception with Figma's error message or default message
+      // Throwing HTTP exception with Figma's error message or default message
       throw new HttpException(
         error.response?.data?.err || 'Failed to fetch Figma file',
         error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,

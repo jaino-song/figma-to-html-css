@@ -9,16 +9,7 @@ import {
   LayoutConstraint 
 } from '../../domain/figma.types';
 
-/**
- * Mapper to convert Figma API responses to Domain types
- * 
- * Purpose:
- * - Type safety: Convert 'any' from API to typed Domain objects
- * - Validation: Ensure required fields exist
- * - Future-proofing: Central place to handle API changes
- */
-
-// maps the raw Figma API response to domain FigmaNode type
+// Mapper to convert Figma API responses to Domain entities for type safety
 export const figmaApiToDomain = (apiResponse: any): FigmaNode => {
   if (!apiResponse) {
     throw new Error('Invalid Figma API response: response is null or undefined');
@@ -43,8 +34,11 @@ export const figmaApiToDomain = (apiResponse: any): FigmaNode => {
     characters: apiResponse.characters,
     style: apiResponse.style ? mapTypeStyleToDomain(apiResponse.style) : undefined,
     layoutMode: apiResponse.layoutMode,
+    layoutPositioning: apiResponse.layoutPositioning,
     counterAxisSizingMode: apiResponse.counterAxisSizingMode,
     primaryAxisSizingMode: apiResponse.primaryAxisSizingMode,
+    counterAxisAlignItems: apiResponse.counterAxisAlignItems,
+    primaryAxisAlignItems: apiResponse.primaryAxisAlignItems,
     paddingLeft: apiResponse.paddingLeft,
     paddingRight: apiResponse.paddingRight,
     paddingTop: apiResponse.paddingTop,
@@ -59,7 +53,7 @@ export const figmaApiToDomain = (apiResponse: any): FigmaNode => {
   };
 };
 
-// maps Paint object from API to domain
+// Maps Paint object from API to domain
 const mapPaintToDomain = (apiPaint: any): Paint => {
   return {
     type: apiPaint.type,
@@ -73,7 +67,7 @@ const mapPaintToDomain = (apiPaint: any): Paint => {
   };
 };
 
-// maps Color object from API to domain
+// Maps Color object from API to domain
 const mapColorToDomain = (apiColor: any): Color => {
   // handles null/undefined color objects from API
   if (!apiColor) {
@@ -88,7 +82,7 @@ const mapColorToDomain = (apiColor: any): Color => {
   };
 };
 
-// maps Effect object from API to domain
+// Maps Effect object from API to domain
 const mapEffectToDomain = (apiEffect: any): Effect => {
   return {
     type: apiEffect.type,
@@ -100,7 +94,7 @@ const mapEffectToDomain = (apiEffect: any): Effect => {
   };
 };
 
-// maps TypeStyle object from API to domain
+// Maps TypeStyle object from API to domain
 const mapTypeStyleToDomain = (apiStyle: any): TypeStyle => {
   return {
     fontFamily: apiStyle.fontFamily,
@@ -115,7 +109,7 @@ const mapTypeStyleToDomain = (apiStyle: any): TypeStyle => {
   };
 };
 
-// maps Vector object from API to domain
+// Maps Vector object from API to domain
 const mapVectorToDomain = (apiVector: any): Vector => {
   // handles null/undefined vector objects from API
   if (!apiVector) {
@@ -128,7 +122,7 @@ const mapVectorToDomain = (apiVector: any): Vector => {
   };
 };
 
-// maps ColorStop object from API to domain
+// Maps ColorStop object from API to domain
 const mapColorStopToDomain = (apiColorStop: any): ColorStop => {
   // handles null/undefined color stop objects from API
   if (!apiColorStop) {
@@ -141,7 +135,7 @@ const mapColorStopToDomain = (apiColorStop: any): ColorStop => {
   };
 };
 
-// maps LayoutConstraint object from API to domain
+// Maps LayoutConstraint object from API to domain
 const mapLayoutConstraintToDomain = (apiConstraint: any): LayoutConstraint => {
   return {
     vertical: apiConstraint.vertical,
@@ -149,12 +143,7 @@ const mapLayoutConstraintToDomain = (apiConstraint: any): LayoutConstraint => {
   };
 };
 
-/**
- * Domain to Figma API mappers (for future use)
- * Currently not needed as we only read from Figma, but included for completeness
- */
-
-// maps domain FigmaNode back to Figma API format
+// Maps domain FigmaNode back to Figma API format
 export const domainToFigmaApi = (node: FigmaNode): any => {
   return {
     id: node.id,
@@ -170,8 +159,11 @@ export const domainToFigmaApi = (node: FigmaNode): any => {
     characters: node.characters,
     style: node.style ? mapTypeStyleToApi(node.style) : undefined,
     layoutMode: node.layoutMode,
+    layoutPositioning: node.layoutPositioning,
     counterAxisSizingMode: node.counterAxisSizingMode,
     primaryAxisSizingMode: node.primaryAxisSizingMode,
+    counterAxisAlignItems: node.counterAxisAlignItems,
+    primaryAxisAlignItems: node.primaryAxisAlignItems,
     paddingLeft: node.paddingLeft,
     paddingRight: node.paddingRight,
     paddingTop: node.paddingTop,
@@ -186,7 +178,7 @@ export const domainToFigmaApi = (node: FigmaNode): any => {
   };
 };
 
-// maps domain Paint back to API format
+// Maps domain Paint back to API format
 const mapPaintToApi = (paint: Paint): any => {
   return {
     type: paint.type,
@@ -200,7 +192,7 @@ const mapPaintToApi = (paint: Paint): any => {
   };
 };
 
-// maps domain Effect back to API format
+// Maps domain Effect back to API format
 const mapEffectToApi = (effect: Effect): any => {
   return {
     type: effect.type,
@@ -212,7 +204,7 @@ const mapEffectToApi = (effect: Effect): any => {
   };
 };
 
-// maps domain TypeStyle back to API format
+// Maps domain TypeStyle back to API format
 const mapTypeStyleToApi = (style: TypeStyle): any => {
   return {
     fontFamily: style.fontFamily,

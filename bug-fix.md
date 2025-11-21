@@ -398,16 +398,169 @@ const html = nodesToProcess.length > 1
 
 ---
 
+## Bug #3: Artboards Horizontal Layout (Incorrect Direction)
+
+**Date:** 2025-11-21  
+**Severity:** 🟡 Major (UX Issue)  
+**Affected Files:** `apps/server/src/modules/figma/application/figma-converter.service.ts`
+
+### **Problem**
+
+When processing multiple artboards, the `.artboards-container` was using the default `flex-direction: row`, which laid out frames **horizontally** (side-by-side). This required horizontal scrolling and didn't provide a good viewing experience for multiple screens/components.
+
+#### **Buggy CSS:**
+```css
+.artboards-container {
+  display: flex;
+  flex-wrap: wrap;       /* Frames would wrap to next row */
+  gap: 32px;
+  padding: 32px;
+  justify-content: center;
+  align-items: flex-start;
+}
+```
+
+#### **Visual Result (Horizontal - Bad UX):**
+```
+┌──────────────────────────────────────┐
+│  ┌─────┐  ┌─────┐  ┌─────┐  ┌─────┐ │
+│  │ F1  │  │ F2  │  │ F3  │  │ F4  │ │ → Horizontal scroll
+│  └─────┘  └─────┘  └─────┘  └─────┘ │   needed for wide
+└──────────────────────────────────────┘   artboards
+```
+
+**User Request:** "If there are multiple frames, I want them to be attached at the bottom of the previous ones" (vertical stacking)
+
+### **Root Cause**
+
+The `.artboards-container` flexbox was missing `flex-direction: column`, defaulting to `row`. While this technically "works", it creates a poor UX because:
+
+1. **Horizontal scrolling** required for wide artboards
+2. **Wrapping behavior** on smaller screens breaks visual hierarchy
+3. **Unnatural reading flow** - screens/components are meant to be viewed top-to-bottom, not side-by-side
+
+### **Solution**
+
+Change flexbox to stack vertically:
+
+```typescript
+const baseCss = `
+  body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #f5f5f5;
+  }
+  * { box-sizing: border-box; }
+
+  .artboards-container {
+    display: flex;
+    flex-direction: column;  // ✅ Stack vertically
+    gap: 32px;
+    padding: 32px;
+    align-items: center;     // ✅ Center horizontally
+  }
+`;
+```
+
+#### **Key Changes:**
+1. ✅ **Added `flex-direction: column`** - Stack frames vertically
+2. ✅ **Removed `flex-wrap: wrap`** - Not needed for vertical stacking
+3. ✅ **Changed `align-items` to `center`** - Center frames horizontally
+4. ✅ **Removed `justify-content: center`** - Not needed (items naturally stack)
+
+#### **Visual Result (Vertical - Good UX):**
+```
+┌─────────────┐
+│  ┌─────┐    │
+│  │ F1  │    │
+│  └─────┘    │
+│             │
+│  ┌─────┐    │
+│  │ F2  │    │  ↓ Natural scrolling
+│  └─────┘    │    (vertical)
+│             │
+│  ┌─────┐    │
+│  │ F3  │    │
+│  └─────┘    │
+│             │
+│  ┌─────┐    │
+│  │ F4  │    │
+│  └─────┘    │
+└─────────────┘
+```
+
+### **Benefits**
+
+✅ **Natural scrolling:** Vertical scroll is the web standard  
+✅ **Better readability:** Top-to-bottom reading flow  
+✅ **No wrapping issues:** Each frame gets full width  
+✅ **Mobile-friendly:** Works on all screen sizes  
+✅ **Consistent spacing:** `gap: 32px` creates even spacing between frames
+
+### **Testing**
+
+Updated existing test to verify vertical layout:
+
+```typescript
+// tests that artboards container uses vertical flex layout
+it('should create artboards container with flex for multiple artboards', () => {
+  const mockNode: FigmaNode = {
+    id: '0:0',
+    name: 'Document',
+    type: 'DOCUMENT',
+    children: [
+      {
+        id: '1:0',
+        name: 'Canvas',
+        type: 'CANVAS',
+        children: [
+          { id: '1:1', name: 'Frame 1', type: 'FRAME', children: [] },
+          { id: '1:2', name: 'Frame 2', type: 'FRAME', children: [] },
+        ],
+      },
+    ],
+  };
+
+  const result = service.convert(mockNode);
+
+  expect(result.css).toContain('.artboards-container');
+  expect(result.css).toContain('display: flex');
+  expect(result.css).toContain('flex-direction: column');  // ✅ Verify vertical
+  expect(result.css).toContain('gap: 32px');
+});
+```
+
+### **Documentation Updated**
+
+Added to `decision-flow.md`:
+
+> **Container Layout:** When multiple artboards are detected, they are wrapped in `.artboards-container` with `flex-direction: column` to **stack them vertically** (each artboard appears below the previous one). This provides a natural scrolling experience when viewing multiple screens/components.
+
+### **Impact**
+
+✅ **Before:** Frames laid out horizontally, awkward scrolling, wrapping issues  
+✅ **After:** Frames stacked vertically with natural scrolling  
+✅ **User Experience:** Matches user's mental model of viewing screens/components  
+✅ **Test Coverage:** 42 converter tests (updated 1 test)
+
+---
+
 ## Summary Statistics
 
 | Metric | Value |
 |--------|-------|
-| **Total Bugs Fixed** | 2 |
+| **Total Bugs Fixed** | 3 |
 | **Critical Bugs** | 1 (Null-safety) |
-| **Major Bugs** | 1 (Positioning) |
+| **Major Bugs** | 2 (Positioning, Layout Direction) |
 | **Tests Added** | 8 (7 mapper + 1 converter) |
+| **Tests Updated** | 1 (vertical layout verification) |
 | **Total Test Coverage** | 112 tests across all layers |
-| **Files Modified** | 3 (mapper, converter, test files) |
+| **Files Modified** | 4 (mapper, converter, test files, decision-flow) |
 
 ---
 

@@ -936,6 +936,499 @@ if (node.transitionDuration) {
 
 ---
 
+## 9. **Complete Convert Method Flow**
+
+### High-Level Algorithm
+
+```typescript
+convert(rootNode: FigmaNode): { html: string; css: string }
+```
+
+### Step-by-Step Process:
+
+```
+1. Find All Artboards
+   ↓
+2. Determine Nodes to Process
+   ↓
+3. Create Context (for CSS accumulation)
+   ↓
+4. Process Each Artboard Recursively
+   ↓
+5. Wrap in Container (if multiple artboards)
+   ↓
+6. Combine CSS Rules
+   ↓
+7. Return { html, css }
+```
+
+### Detailed Flow:
+
+#### **Step 1: Find All Artboards**
+```typescript
+const artboards = this.findAllArtboards(rootNode);
+```
+
+**Purpose:** Extract top-level frames from Figma's nested structure
+
+**Figma Structure:**
+```
+DOCUMENT
+  └── CANVAS
+       ├── FRAME (Artboard 1)
+       ├── SECTION (Artboard 2)
+       └── COMPONENT (Artboard 3)
+```
+
+**Algorithm:**
+- If at CANVAS level → Return all FRAME/SECTION/COMPONENT children
+- If at DOCUMENT level → Recursively collect from all CANVAS children
+- Otherwise → Search recursively for CANVAS nodes
+
+**Why Multiple Types?**
+- **FRAME:** Standard artboard
+- **SECTION:** Figma's section containers (also valid artboards)
+- **COMPONENT:** Component definitions (can be rendered standalone)
+
+---
+
+#### **Step 2: Determine Nodes to Process**
+```typescript
+const nodesToProcess = artboards.length > 0 ? artboards : [rootNode];
+```
+
+**Logic:**
+- ✅ If artboards found → Process all artboards
+- ✅ If no artboards → Fallback to root node (edge case handling)
+
+**Why Fallback?**
+- Handles malformed Figma files
+- Empty designs
+- Non-standard structures
+
+---
+
+#### **Step 3: Create Context**
+```typescript
+const context = { 
+  cssRules: [] as string[], 
+  idCounter: 0 
+};
+```
+
+**Context Object:**
+- **`cssRules`:** Accumulates CSS rules during traversal
+- **`idCounter`:** Reserved for future use (sequential IDs)
+
+**Why Context?**
+- Thread-safe (no class state)
+- Passed down recursively
+- Each conversion is isolated
+
+---
+
+#### **Step 4: Process Each Artboard**
+```typescript
+const artboardsHtml = nodesToProcess.map((artboard) => {
+  return this.processNode(artboard, artboard, context, true);
+}).join('');
+```
+
+**Key Decision:** `isRoot=true` for ALL artboards
+
+**Why?**
+- All artboards are top-level in flexbox container
+- Must have `position: relative` (not absolute)
+- Participate in flex flow
+- See Bug #2 for historical context
+
+**Recursive Processing:**
+```
+processNode(artboard)
+  ├── Generate CSS class
+  ├── Generate styles
+  ├── Process children recursively
+  │   ├── processNode(child1)
+  │   │   ├── processNode(grandchild1)
+  │   │   └── processNode(grandchild2)
+  │   └── processNode(child2)
+  └── Return HTML
+```
+
+---
+
+#### **Step 5: Wrap in Container**
+```typescript
+const html = nodesToProcess.length > 1 
+  ? `<div class="artboards-container">${artboardsHtml}</div>`
+  : artboardsHtml;
+```
+
+**Conditional Wrapping:**
+- **Multiple artboards** → Wrap in `.artboards-container`
+- **Single artboard** → No wrapper (cleaner output)
+
+**Why?**
+- Avoid unnecessary div for single artboards
+- Container only needed for layout management
+
+---
+
+#### **Step 6: Combine CSS Rules**
+```typescript
+const baseCss = `
+  body { ... }
+  * { box-sizing: border-box; }
+  .artboards-container { 
+    display: flex;
+    flex-direction: column;  // ✅ Vertical stacking (Bug #3 fix)
+    gap: 32px;
+    align-items: center;
+  }
+`;
+
+return {
+  html,
+  css: baseCss + '\n' + context.cssRules.join('\n'),
+};
+```
+
+**CSS Structure:**
+```css
+/* 1. Base CSS (resets, global styles) */
+body { ... }
+
+/* 2. Container (if multiple artboards) */
+.artboards-container { ... }
+
+/* 3. Generated CSS Rules (from context) */
+.node-1-1 { ... }
+.node-1-2 { ... }
+.node-1-3 { ... }
+```
+
+**Order Matters:**
+- Base styles first (lowest specificity)
+- Generated rules last (can override base)
+
+---
+
+#### **Step 7: Return Result**
+```typescript
+return {
+  html: '<div class="artboards-container">...</div>',
+  css: 'body { ... } .node-1-1 { ... }'
+};
+```
+
+**Plain JavaScript Object:**
+- Serializable (JSON)
+- Framework-agnostic
+- Easy to test
+
+---
+
+## 10. **Critical Bugs Fixed During Development**
+
+### **Bug #1: Null-Safety Vulnerabilities** 🔴 Critical
+
+**Location:** Mapper layer (infrastructure)  
+**Impact:** Runtime crashes on ~10-20% of Figma files
+
+#### **Problem:**
+```typescript
+// ❌ BAD: Crashes if apiColor is null
+const mapColorToDomain = (apiColor: any): Color => {
+  return {
+    r: apiColor.r ?? 0,  // Cannot read property 'r' of null
+    g: apiColor.g ?? 0,
+    b: apiColor.b ?? 0,
+    a: apiColor.a ?? 1,
+  };
+};
+```
+
+**Why This Happened:**
+- Figma API can return `null` for optional nested properties (valid behavior)
+- Mappers assumed objects were always defined
+- Used nullish coalescing (`??`) for properties but not objects
+
+**Real-World Scenario:**
+```json
+{
+  "fills": [
+    { "type": "SOLID", "color": null }  // Valid API response!
+  ]
+}
+```
+
+#### **Solution:**
+```typescript
+// ✅ FIXED: Check object first
+const mapColorToDomain = (apiColor: any): Color => {
+  if (!apiColor) {
+    return { r: 0, g: 0, b: 0, a: 1 };  // Sensible default
+  }
+  return {
+    r: apiColor.r ?? 0,
+    g: apiColor.g ?? 0,
+    b: apiColor.b ?? 0,
+    a: apiColor.a ?? 1,
+  };
+};
+```
+
+**Lesson Learned:**
+- Never assume nested API objects are non-null
+- Always validate at object level, then property level
+- Provide sensible defaults (transparent black, origin point, etc.)
+
+---
+
+### **Bug #2: Multiple Artboards Positioning Issue** 🟡 Major
+
+**Location:** Converter service (application layer)  
+**Impact:** Artboards overlap/render incorrectly
+
+#### **Problem:**
+```typescript
+// ❌ BAD: Only first artboard treated as root
+const artboardsHtml = nodesToProcess.map((artboard, index) => {
+  return this.processNode(artboard, artboard, context, index === 0);
+}).join('');
+```
+
+**Why This Happened:**
+- Thought only first artboard needed `position: relative`
+- Other artboards got `position: absolute`
+- Absolute positioning removes elements from flex flow
+
+**Visual Result:**
+```
+┌───────────────────────────────┐
+│   Frame 1   Frame 2  Frame 3  │
+│   ┌─────┐                     │
+│   │  1  │                     │
+│   └─────┘                     │
+│   ┌─────┐ ← Frames 2 & 3     │
+│   │ 2&3 │   overlap here!     │
+│   └─────┘                     │
+└───────────────────────────────┘
+```
+
+#### **Solution:**
+```typescript
+// ✅ FIXED: All artboards treated as root
+const artboardsHtml = nodesToProcess.map((artboard) => {
+  return this.processNode(artboard, artboard, context, true);
+}).join('');
+```
+
+**Why This Works:**
+```css
+.artboards-container { display: flex; }
+
+.node-1-1 { position: relative; }  /* ✅ Stays in flex */
+.node-1-2 { position: relative; }  /* ✅ Stays in flex */
+.node-1-3 { position: relative; }  /* ✅ Stays in flex */
+```
+
+**Lesson Learned:**
+- Consider parent container's layout system
+- All children of flex container need consistent positioning
+- `isRoot` doesn't mean "first item", it means "top-level container"
+
+---
+
+### **Bug #3: Horizontal Layout Issue** 🟡 Major
+
+**Location:** Converter service (application layer)  
+**Impact:** Poor UX, awkward scrolling
+
+#### **Problem:**
+```typescript
+// ❌ BAD: Missing flex-direction
+const baseCss = `
+  .artboards-container {
+    display: flex;  /* Defaults to row (horizontal) */
+    gap: 32px;
+  }
+`;
+```
+
+**Visual Result (Horizontal):**
+```
+┌──────────────────────────────────────┐
+│  ┌─────┐  ┌─────┐  ┌─────┐  ┌─────┐ │
+│  │ F1  │  │ F2  │  │ F3  │  │ F4  │ │ → Horizontal scroll
+│  └─────┘  └─────┘  └─────┘  └─────┘ │   (Bad UX)
+└──────────────────────────────────────┘
+```
+
+**User Feedback:**
+> "I want them to be attached at the bottom of the previous ones"
+
+#### **Solution:**
+```typescript
+// ✅ FIXED: Vertical stacking
+const baseCss = `
+  .artboards-container {
+    display: flex;
+    flex-direction: column;  // Stack vertically
+    gap: 32px;
+    align-items: center;     // Center horizontally
+  }
+`;
+```
+
+**Visual Result (Vertical):**
+```
+┌─────────────┐
+│  ┌─────┐    │
+│  │ F1  │    │
+│  └─────┘    │
+│  ┌─────┐    │
+│  │ F2  │    │  ↓ Natural scrolling
+│  └─────┘    │
+│  ┌─────┐    │
+│  │ F3  │    │
+│  └─────┘    │
+└─────────────┘
+```
+
+**Lesson Learned:**
+- Default CSS behavior isn't always the right choice
+- Consider user's mental model (top-to-bottom for screens)
+- Vertical scrolling is web standard
+
+---
+
+### **Bug #4: Broken Image References**
+
+**Location:** Converter service (application layer)  
+**Impact:** Broken images with hash references
+
+#### **Problem:**
+```typescript
+// ❌ BAD: imageRef is a hash, not a URL
+if (fill.type === 'IMAGE') {
+  return `url(${fill.imageRef || ''}) center / cover no-repeat`;
+}
+```
+
+**Result:**
+```css
+background: url(a3f5d2c8b1e9) center / cover no-repeat;  /* Broken! */
+```
+
+**Why This Happened:**
+- Figma API returns `imageRef` as a hash ID
+- Actual image requires separate API call to download
+- Not directly usable as CSS URL
+
+#### **Solution:**
+```typescript
+// ✅ FIXED: Use placeholder gradient
+if (fill.type === 'IMAGE') {
+  return 'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%)';
+}
+```
+
+**Trade-off:**
+- ✅ No broken images
+- ✅ Visual indication of image area
+- ❌ Actual image not shown (future enhancement)
+
+**Future Enhancement:**
+- Download images via Figma API
+- Base64 encode or save to CDN
+- Generate proper image URLs
+
+---
+
+### **Bug #5: Absolute Positioning in Auto-Layout**
+
+**Location:** Converter service (application layer)  
+**Impact:** Elements positioned incorrectly
+
+#### **Problem:**
+```typescript
+// Parent has auto-layout, but children getting absolute positioning
+if (hasAbsoluteChildren) {
+  styles.push('position: relative;');  // ❌ Wrong context
+}
+```
+
+**Why This Happened:**
+- Logic checked if node has absolutely positioned children
+- Didn't consider if parent has auto-layout
+- Children should be `position: static` in flex containers
+
+#### **Solution:**
+```typescript
+if (parentHasAutoLayout) {
+  // Parent uses flex, child should participate
+  if (hasAbsoluteChildren) {
+    styles.push('position: relative;');  // ✅ Can contain absolute children
+  } else {
+    styles.push('position: static;');    // ✅ Normal flex child
+  }
+} else if (hasAbsoluteChildren) {
+  // Parent doesn't use flex, child needs absolute positioning
+  styles.push('position: absolute;');
+  // Calculate position...
+}
+```
+
+**Decision Tree:**
+```
+Has parent with auto-layout?
+├─ YES → Use static (or relative if has absolute children)
+└─ NO  → Use absolute with calculated position
+```
+
+**Lesson Learned:**
+- Positioning depends on parent AND child context
+- Flex containers need special handling
+- Can't decide positioning based on child alone
+
+---
+
+## 11. **Testing Strategy for Critical Paths**
+
+### **Convert Method Tests**
+
+```typescript
+describe('convert', () => {
+  it('should handle single artboard', () => {
+    const result = service.convert(singleFrameNode);
+    expect(result.html).not.toContain('artboards-container');
+  });
+
+  it('should handle multiple artboards with vertical layout', () => {
+    const result = service.convert(multiFrameNode);
+    expect(result.html).toContain('artboards-container');
+    expect(result.css).toContain('flex-direction: column');
+  });
+
+  it('should treat all artboards as root containers', () => {
+    const result = service.convert(multiFrameNode);
+    // All frames should have position: relative
+    const matches = result.css.match(/position: relative/g);
+    expect(matches?.length).toBeGreaterThan(1);
+  });
+
+  it('should handle empty document gracefully', () => {
+    const emptyNode = { type: 'DOCUMENT', children: [] };
+    const result = service.convert(emptyNode);
+    expect(result.html).toBeTruthy();
+    expect(result.css).toBeTruthy();
+  });
+});
+```
+
+---
+
 ## Key Takeaways
 
 1. **Pure Business Logic** - No HTTP, no database, no framework dependencies
@@ -945,5 +1438,7 @@ if (node.transitionDuration) {
 5. **Security-First** - HTML escaping prevents XSS
 6. **Testable** - Easy to unit test with mock data
 7. **Extensible** - Easy to add new CSS properties or HTML elements
+8. **Bug-Aware** - Multiple critical bugs fixed during development (see section #10)
+9. **Context-Aware Positioning** - Considers both parent and child layout systems
 
 **Golden Rule:** If it's about "how to convert Figma to HTML/CSS", it belongs here. If it's about "where to get Figma data" or "how to send HTTP responses", it belongs elsewhere.

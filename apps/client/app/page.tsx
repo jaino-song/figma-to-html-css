@@ -17,11 +17,16 @@ export default function Home() {
     queryKey: ['convert-figma', fileKey, token],
     queryFn: () => convertFigma(fileKey, token),
     enabled: shouldFetch && !!fileKey && !!token,
-    staleTime: 1000 * 60 // 1 minute
+    staleTime: Infinity, // don't stale the data
+    refetchOnWindowFocus: false, // don't refetch when window regains focus
+    refetchOnMount: false, // don't refetch when component remounts
+    refetchOnReconnect: false, // don't refetch when network reconnects
   });
 
   // destructuring the data from the query
   const { html, css } = data || { html: '', css: '' };
+  console.log('html', html);
+  console.log('css', css);
 
   // triggering the conversion to html and css
   const handleConvert = (e: React.FormEvent) => {
@@ -176,7 +181,7 @@ export default function Home() {
                         <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 font-mono text-xs text-gray-500">index.html</div>
                         <textarea
                           readOnly
-                          className="flex-1 w-full p-4 font-mono text-xs resize-none focus:outline-none"
+                          className="flex-1 w-full p-4 text-black font-mono text-xs resize-none focus:outline-none"
                           value={html}
                         />
                     </div>
@@ -184,7 +189,7 @@ export default function Home() {
                         <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 font-mono text-xs text-gray-500">styles.css</div>
                         <textarea
                           readOnly
-                          className="flex-1 w-full p-4 font-mono text-xs resize-none focus:outline-none"
+                          className="flex-1 w-full p-4 text-black font-mono text-xs resize-none focus:outline-none"
                           value={css}
                         />
                     </div>

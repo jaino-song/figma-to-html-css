@@ -207,6 +207,7 @@ describe('FigmaConverterService', () => {
 
             expect(result.css).toContain('.artboards-container');
             expect(result.css).toContain('display: flex');
+            expect(result.css).toContain('flex-direction: column');
             expect(result.css).toContain('gap: 32px');
         });
 
@@ -263,6 +264,96 @@ describe('FigmaConverterService', () => {
             expect(frame1Styles).not.toContain('position: absolute');
             expect(frame2Styles).not.toContain('position: absolute');
             expect(frame3Styles).not.toContain('position: absolute');
+        });
+
+        // tests that SECTION nodes are also treated as artboards
+        it('should convert SECTION nodes as artboards', () => {
+            const mockNode: FigmaNode = {
+                id: '0:0',
+                name: 'Document',
+                type: 'DOCUMENT',
+                children: [
+                    {
+                        id: '1:0',
+                        name: 'Canvas',
+                        type: 'CANVAS',
+                        children: [
+                            {
+                                id: '13:21',
+                                name: 'Colors',
+                                type: 'SECTION',
+                                absoluteBoundingBox: { x: 72, y: 50, width: 412, height: 211 },
+                                children: [],
+                            },
+                            {
+                                id: '13:22',
+                                name: 'Background',
+                                type: 'SECTION',
+                                absoluteBoundingBox: { x: 72, y: 281, width: 412, height: 211 },
+                                children: [],
+                            },
+                            {
+                                id: '11:364',
+                                name: 'Fonts',
+                                type: 'FRAME',
+                                absoluteBoundingBox: { x: 596, y: 0, width: 556, height: 311 },
+                                children: [],
+                            },
+                        ],
+                    },
+                ],
+            };
+
+            const result = service.convert(mockNode);
+
+            // All sections and frames should be converted
+            expect(result.html).toContain('node-13-21'); // Colors section
+            expect(result.html).toContain('node-13-22'); // Background section
+            expect(result.html).toContain('node-11-364'); // Fonts frame
+            expect(result.html).toContain('artboards-container'); // Multiple artboards wrapper
+        });
+
+        // tests mixed FRAME, SECTION, and COMPONENT nodes
+        it('should convert mixed artboard types', () => {
+            const mockNode: FigmaNode = {
+                id: '0:0',
+                name: 'Document',
+                type: 'DOCUMENT',
+                children: [
+                    {
+                        id: '1:0',
+                        name: 'Canvas',
+                        type: 'CANVAS',
+                        children: [
+                            {
+                                id: '1:1',
+                                name: 'Frame',
+                                type: 'FRAME',
+                                children: [],
+                            },
+                            {
+                                id: '1:2',
+                                name: 'Section',
+                                type: 'SECTION',
+                                children: [],
+                            },
+                            {
+                                id: '1:3',
+                                name: 'Component',
+                                type: 'COMPONENT',
+                                children: [],
+                            },
+                        ],
+                    },
+                ],
+            };
+
+            const result = service.convert(mockNode);
+
+            expect(result.html).toContain('node-1-1');
+            expect(result.html).toContain('node-1-2');
+            expect(result.html).toContain('node-1-3');
+            expect(result.html).toContain('artboards-container');
         });
     });
 
